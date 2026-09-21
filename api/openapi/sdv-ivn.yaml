@@ -1,0 +1,474 @@
+openapi: 3.1.0
+info:
+  title: SDV-IVN Service API
+  version: 0.1.0
+  description: |
+    SDV-IVN 관리면(Management Plane) API. Part 2 의 기계 판본이다.
+
+    이 API 는 설정과 조회를 한다. 실시간 데이터는 여기로 흐르지 않고 DDS 로
+    흐른다 (Data Plane). 둘을 경쟁 관계로 두면 설계가 망가진다 — Part 1 §3.2.
+
+    인증은 이 판본의 범위 밖이다. 차량 내부 관리망에서만 노출한다고 가정하며,
+    외부에 노출할 경우의 요구사항은 TTAK.KO-12.0420 을 따른다.
+  license: { name: Apache-2.0 }
+
+servers:
+  - url: http://localhost:8080/v1
+    description: 플랫폼 관리 서비스
+
+tags:
+  - name: network
+    description: 스트림 등록, QoS, 이중화, 측정 — 이 과제의 핵심
+  - name: vehicle
+    description: 차량 데이터와 기능 (COVESA VSS 기반)
+  - name: device
+    description: IVN 반도체와 스위치. 어댑터가 벤더 차이를 흡수한다.
+  - name: fault
+    description: 결함 보고와 재구성
+  - name: diagnostics
+    description: 헬스와 통계
+
+paths:
+
+  /network/classes:
+    get:
+      tags: [network]
+      summary: QoS 등급 목록
+      description: Part 3 의 다섯 등급과 각각의 파생 값.
+      responses:
+        "200":
+          description: 등급 레지스트리
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version: { type: string }
+                  profile: { type: string }
+                  classes:
+                    type: object
+                    additionalProperties: { $ref: "#/components/schemas/QosClass" }
+
+  /network/streams:
+    get:
+      tags: [network]
+      summary: 등록된 스트림 목록
+      parameters:
+        - { name: domain, in: query, schema: { type: string } }
+        - { name: qos_class, in: query, schema: { $ref: "#/components/schemas/QosClassName" } }
+      responses:
+        "200":
+          description: 스트림 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ResolvedStream" }
+    post:
+      tags: [network]
+      summary: 스트림 등록 (승인 판정 포함)
+      description: |
+        애플리케이션은 등급 이름과 트래픽 특성만 낸다. PCP, VLAN, 셰이퍼,
+        FRER 설정은 전부 플랫폼이 정한다.
+
+        승인에 실패하면 409 를 돌려주고 이유를 문장으로 설명한다. 실패 이유는
+        정책이지 버그가 아니므로, 클라이언트가 재시도로 뚫을 수 있는 것이
+        아니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StreamRequest" }
+      responses:
+        "201":
+          description: 등록됨
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResolvedStream" }
+        "409":
+          description: 승인 거부
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Refusal" }
+
+  /network/streams/{name}:
+    parameters:
+      - { name: name, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [network]
+      summary: 스트림 하나 조회
+      responses:
+        "200":
+          description: 스트림
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResolvedStream" }
+        "404": { description: 없음 }
+    delete:
+      tags: [network]
+      summary: 스트림 해제 (예약 대역 반환)
+      responses:
+        "204": { description: 해제됨 }
+
+  /network/admission:
+    post:
+      tags: [network]
+      summary: 배치하지 않고 승인 가능 여부만 판정
+      description: 계획 단계에서 쓴다. 상태를 바꾸지 않는다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [streams, link]
+              properties:
+                streams:
+                  type: array
+                  items: { $ref: "#/components/schemas/StreamRequest" }
+                link: { $ref: "#/components/schemas/LinkName" }
+      responses:
+        "200":
+          description: 판정
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdmissionVerdict" }
+
+  /network/plan:
+    post:
+      tags: [network]
+      summary: 특정 장비에 대한 배치 계획
+      description: |
+        거부와 기록된 예외를 포함한 계획. 장비가 못 하는 것은 조용히 낮추지
+        않고 거부한다 — Part 4 §9.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [streams, device]
+              properties:
+                streams:
+                  type: array
+                  items: { $ref: "#/components/schemas/StreamRequest" }
+                device: { type: string, examples: [lan9692, kontron_d10] }
+                port: { type: string, default: "1" }
+                waivers:
+                  type: array
+                  items: { $ref: "#/components/schemas/Waiver" }
+      responses:
+        "200":
+          description: 배치 계획
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeploymentPlan" }
+
+  /network/measurements:
+    get:
+      tags: [network]
+      summary: 스트림별 실측 지연·지터·유실
+      description: |
+        DDS 모니터가 채운다. 값이 없으면 null 이고, 0 이 아니다. 아직 재지
+        않은 것과 0 인 것은 다르다.
+      parameters:
+        - { name: stream, in: query, schema: { type: string } }
+        - { name: window_s, in: query, schema: { type: number, default: 10 } }
+      responses:
+        "200":
+          description: 측정값
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StreamMeasurement" }
+
+  /network/topology:
+    get:
+      tags: [network]
+      summary: 링크와 장비로 본 망 구조
+      responses:
+        "200":
+          description: 토폴로지
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Topology" }
+
+  /device:
+    get:
+      tags: [device]
+      summary: 등록된 IVN 장비와 그 능력
+      description: |
+        능력은 true / false / null 세 값이다. null 은 "아직 측정하지 않았다"
+        이고 false 와 다르게 다뤄진다.
+      responses:
+        "200":
+          description: 장비 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Device" }
+
+  /device/{id}/tsn:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [device]
+      summary: 현재 TSN 설정 (게이트 목록, idleSlope, 선점)
+      responses:
+        "200": { description: 설정, content: { application/json: { schema: { type: object } } } }
+    put:
+      tags: [device]
+      summary: 계산된 TSN 설정 적용
+      responses:
+        "200": { description: 적용됨 }
+        "409": { description: 장비 능력 부족, content: { application/json: { schema: { $ref: "#/components/schemas/Refusal" } } } }
+
+  /device/{id}/statistics:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [device]
+      summary: 포트·큐별 카운터
+      responses:
+        "200": { description: 통계, content: { application/json: { schema: { type: object } } } }
+
+  /vehicle/state:
+    get:
+      tags: [vehicle]
+      summary: 차량 상태 (VSS 경로 기반)
+      responses:
+        "200":
+          description: 상태
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                examples:
+                  - Vehicle.Speed: 11.4
+                    Vehicle.Chassis.SteeringWheel.Angle: -2.1
+                    Network.Stream.Control.LatencyUs: 562
+
+  /fault/reports:
+    get:
+      tags: [fault]
+      summary: 현재 활성 결함
+      responses:
+        "200":
+          description: 결함 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FaultReport" }
+
+  /fault/inject:
+    post:
+      tags: [fault]
+      summary: 시험용 결함 주입
+      description: |
+        네트워크 결함까지 포함한다 — 링크 단절, 패킷 유실, 지연 추가, DDS
+        deadline miss, FRER 한 경로 상실, 10BASE-T1S 노드 고장.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FaultInjection" }
+      responses:
+        "202": { description: 주입됨 }
+
+  /diagnostics/health:
+    get:
+      tags: [diagnostics]
+      summary: 플랫폼 헬스
+      responses:
+        "200": { description: 헬스, content: { application/json: { schema: { type: object } } } }
+
+components:
+  schemas:
+
+    QosClassName:
+      type: string
+      enum: [BEST_EFFORT, BULK_DATA, REALTIME, SAFETY_CRITICAL, REDUNDANT_SAFETY]
+
+    LinkName:
+      type: string
+      enum: [multigige_10g, multigige_2g5, multigige_1g, t1s_10m]
+
+    QosClass:
+      type: object
+      properties:
+        id: { type: string, examples: [SDV_QOS_3] }
+        description: { type: string }
+        latency_budget_ms: { type: [number, "null"] }
+        deadline_ms: { type: [number, "null"] }
+        jitter_budget_ms: { type: [number, "null"] }
+        pcp: { type: integer, minimum: 0, maximum: 7 }
+        traffic_class: { type: integer, minimum: 0, maximum: 7 }
+        shaper: { type: string, enum: [best_effort, strict_priority, cbs, tas] }
+        redundancy: { type: string, enum: [none, frer_dual] }
+        reliability: { type: string, enum: [best_effort, reliable] }
+        durability: { type: string, enum: [volatile, transient_local] }
+        dscp: { type: integer }
+        preemption: { type: string, enum: [express, preemptable] }
+        max_rate_mbps: { type: [number, "null"] }
+        default_domain: { type: string }
+
+    StreamRequest:
+      type: object
+      required: [name, qos_class, payload_bytes, period_ms]
+      description: |
+        애플리케이션이 내는 전부. PCP 도 VLAN 도 셰이퍼도 여기 없다.
+      properties:
+        name: { type: string, examples: ["/control/command/control_cmd"] }
+        qos_class: { $ref: "#/components/schemas/QosClassName" }
+        payload_bytes: { type: integer, minimum: 1 }
+        period_ms: { type: number, exclusiveMinimum: 0 }
+        talker: { type: string }
+        listeners: { type: array, items: { type: string } }
+        domain: { type: [string, "null"] }
+        link: { $ref: "#/components/schemas/LinkName" }
+        durability: { type: [string, "null"], enum: [volatile, transient_local, null] }
+        ros_topic: { type: string, description: "출처 추적용" }
+
+    ResolvedStream:
+      type: object
+      description: 등급에서 파생된 전부.
+      properties:
+        name: { type: string }
+        qos_class: { $ref: "#/components/schemas/QosClassName" }
+        rate_mbps: { type: number, description: "이더넷 프레이밍 포함 선로 대역" }
+        frames_per_sample: { type: integer }
+        wire_bytes_per_sample: { type: integer }
+        vlan: { type: integer }
+        pcp: { type: integer }
+        dds: { type: object }
+        tsn: { type: object }
+
+    AdmissionVerdict:
+      type: object
+      properties:
+        link: { $ref: "#/components/schemas/LinkName" }
+        port_mbps: { type: number }
+        offered_mbps: { type: number, description: "FRER 복제분 포함" }
+        utilisation: { type: number }
+        limit: { type: number, examples: [0.75] }
+        admitted: { type: boolean }
+        per_class_mbps: { type: object, additionalProperties: { type: number } }
+        reason: { type: [string, "null"] }
+
+    Refusal:
+      type: object
+      properties:
+        stream: { type: string }
+        device: { type: string }
+        requirement: { type: string, examples: [frer_dual] }
+        capability: { type: string, examples: [frer] }
+        reason: { type: string }
+
+    Waiver:
+      type: object
+      required: [stream, device, capability, rationale]
+      description: 기록된 예외. 기능을 숨기는 것이 아니라 설정에서 제거한다.
+      properties:
+        stream: { type: string, description: "'*' 는 전체" }
+        device: { type: string }
+        capability: { type: string }
+        rationale: { type: string, minLength: 20 }
+        approved_by: { type: string }
+
+    DeploymentPlan:
+      type: object
+      properties:
+        device: { type: string }
+        deployed: { type: array, items: { $ref: "#/components/schemas/ResolvedStream" } }
+        refusals: { type: array, items: { $ref: "#/components/schemas/Refusal" } }
+        waived:
+          type: array
+          items:
+            type: object
+            properties:
+              refusal: { $ref: "#/components/schemas/Refusal" }
+              waiver: { $ref: "#/components/schemas/Waiver" }
+        degraded: { type: boolean }
+        config: { type: object, description: "YANG 인스턴스 데이터" }
+
+    StreamMeasurement:
+      type: object
+      description: 아직 재지 않은 값은 null 이다. 0 이 아니다.
+      properties:
+        stream: { type: string }
+        window_s: { type: number }
+        samples: { type: integer }
+        latency_us: { $ref: "#/components/schemas/Distribution" }
+        jitter_us: { $ref: "#/components/schemas/Distribution" }
+        inter_arrival_us: { $ref: "#/components/schemas/Distribution" }
+        deadline_miss: { type: [integer, "null"] }
+        liveliness_lost: { type: [integer, "null"] }
+        sample_lost: { type: [integer, "null"] }
+        throughput_mbps: { type: [number, "null"] }
+        budget_latency_ms: { type: [number, "null"] }
+        budget_jitter_ms: { type: [number, "null"] }
+        within_budget: { type: [boolean, "null"] }
+
+    Distribution:
+      type: [object, "null"]
+      properties:
+        min: { type: number }
+        p50: { type: number }
+        p99: { type: number }
+        max: { type: number }
+        mean: { type: number }
+
+    Topology:
+      type: object
+      properties:
+        devices: { type: array, items: { $ref: "#/components/schemas/Device" } }
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              a: { type: string }
+              b: { type: string }
+              type: { $ref: "#/components/schemas/LinkName" }
+              up: { type: boolean }
+
+    Device:
+      type: object
+      properties:
+        id: { type: string }
+        vendor: { type: string }
+        description: { type: string }
+        transport: { type: string, enum: [coreconf, json_rpc, netconf, tbd] }
+        capabilities:
+          type: object
+          additionalProperties: { type: [boolean, "null"] }
+          description: "null 은 미측정이며 false 와 다르다"
+        evidence: { type: object, additionalProperties: { type: string } }
+
+    FaultReport:
+      type: object
+      properties:
+        id: { type: string }
+        category: { type: string, enum: [link, dds, path, edge, sensor] }
+        subject: { type: string }
+        severity: { type: string, enum: [info, warning, error, critical] }
+        detected_at: { type: string, format: date-time }
+        detail: { type: string }
+
+    FaultInjection:
+      type: object
+      required: [category, subject]
+      properties:
+        category:
+          type: string
+          enum: [link_down, packet_loss, packet_delay, packet_jitter,
+                 dds_deadline_miss, dds_liveliness_lost,
+                 switch_failure, path_failure, frer_path_loss,
+                 t1s_node_failure, sensor_stale]
+        subject: { type: string }
+        magnitude: { type: number }
+        duration_s: { type: number }

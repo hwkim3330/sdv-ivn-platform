@@ -1,0 +1,340 @@
+# Autoware 레퍼런스 애플리케이션 토픽 카탈로그 — IVN 트래픽 분류
+#
+# 출처는 hwkim3330/autoware 의 실제 코드다. 주기와 QoS 는 코드에서 읽은 값이고,
+# "measured" 로 표시된 것은 그 저장소 문서에 기록된 실측치다. 추정한 값은
+# assumption 필드로 따로 적는다 — 재는 것과 가정하는 것을 섞지 않기 위해서다.
+#
+# sdv_class 는 Part 3 의 다섯 등급 중 하나다. 이 파일이 트래픽 행렬의 입력이고,
+# profiles/autoware/build_profile.py 가 여기서 대역·승인·TSN 설정을 계산한다.
+#
+# 확인된 사실 두 가지를 먼저 적어 둔다.
+#   - lanelet2 벡터 지도(~8 MB)는 이 저장소에서 DDS 토픽으로 흐르지 않는다.
+#     게이트웨이가 파일에서 직접 읽는다. 그러나 DDS 설정(32 MiB 소켓 버퍼,
+#     maxMessageSize 65500)은 그 지도의 조각 유실 때문에 존재한다.
+#   - RViz 가 구독하는 ~150개 planning 디버그 토픽은 시각화 전용이고 저장소의
+#     어떤 노드도 발행/구독하지 않는다. RViz 링크를 모델링할 때만 넣는다.
+
+version: "0.1.0"
+source_repo: hwkim3330/autoware
+captured: 2026-09-21
+
+assumptions:
+  pointcloud_point_step: 16     # PointXYZI float32 ×4. 실제 필드 구성 미확인.
+  odometry_bytes: 728           # header + pose(36 공분산) + twist(36 공분산)
+  image_encoding: rgb8
+
+topics:
+
+  # ---- sensing_high_bandwidth ------------------------------------------
+  - topic: /sensing/lidar/concatenated/pointcloud
+    type: sensor_msgs/msg/PointCloud2
+    bucket: sensing_high_bandwidth
+    sdv_class: REALTIME
+    domain: adas
+    link: multigige_10g
+    rate_hz: 9.9                # measured
+    payload_bytes: 2560000      # high 프로파일 1.6M pps / 10 Hz × 16 B
+    payload_basis: "roii_sensor_spec high = 1,600,000 pps, point_step 16 가정"
+    code_qos: { reliability: best_effort, history: keep_last, depth: 5 }
+    note: "4개 라이다 합성 출력. IVN 백본의 최대 단일 부하."
+
+  - topic: /sensing/lidar/front_g32/pointcloud_raw
+    type: sensor_msgs/msg/PointCloud2
+    bucket: sensing_high_bandwidth
+    sdv_class: REALTIME
+    domain: adas
+    link: multigige_1g
+    rate_hz: 11.0               # config frequency_hz
+    payload_bytes: 480000       # high: G32 300,000 pps / 11 Hz × 16 B
+    code_qos: { reliability: best_effort, history: keep_last, depth: 5 }
+    note: "존 스위치 → HPC 구간. 네 개 중 하나."
+
+  - topic: /sensing/lidar/left_pandar/pointcloud_raw
+    type: sensor_msgs/msg/PointCloud2
+    bucket: sensing_high_bandwidth
+    sdv_class: REALTIME
+    domain: adas
+    link: multigige_1g
+    rate_hz: 11.0
+    payload_bytes: 800000       # high: Pandar 500,000 pps / 11 Hz × 16 B
+    code_qos: { reliability: best_effort, history: keep_last, depth: 5 }
+
+  - topic: /localization/util/downsample/pointcloud
+    type: sensor_msgs/msg/PointCloud2
+    bucket: sensing_high_bandwidth
+    sdv_class: REALTIME
+    domain: adas
+    link: multigige_1g
+    rate_hz: 9.8                # measured
+    payload_bytes: 428064       # 26,754점 실측 × 16 B
+    payload_basis: "awsim_setup.md 실측 crop_box 클라우드 26,754점"
+    code_qos: { reliability: best_effort, history: keep_last, depth: 5 }
+    note: "NDT 입력. 측위가 이것 하나에 걸려 있다."
+
+  - topic: /sensing/camera/camera0/image_rect_color
+    type: sensor_msgs/msg/Image
+    bucket: sensing_high_bandwidth
+    sdv_class: REALTIME
+    domain: adas
+    link: multigige_1g
+    rate_hz: 11.0
+    payload_bytes: 4320000      # 1600×900 rgb8
+    code_qos: { reliability: best_effort, history: keep_last, depth: 5 }
+    note: "CARLA 카메라 6대 중 하나. 6대 전부면 백본만으로 안 된다."
+
+  # ---- sensing_low ------------------------------------------------------
+  - topic: /sensing/imu/imu_data
+    type: sensor_msgs/msg/Imu
+    bucket: sensing_low
+    sdv_class: SAFETY_CRITICAL
+    domain: adas
+    link: t1s_10m
+    rate_hz: 50.0               # config
+    payload_bytes: 320
+    code_qos: { reliability: best_effort, history: keep_last, depth: 5 }
+    note: >
+      처음에 REALTIME 으로 분류했다가 프로파일이 T1S 에서 거부했다.
+      주기적 소형 메시지에 짧은 마감이므로 SAFETY_CRITICAL 이 실제로 맞는
+      분류다. FINDINGS.md 2 참조.
+
+  - topic: /sensing/gnss/pose_with_covariance
+    type: geometry_msgs/msg/PoseWithCovarianceStamped
+    bucket: sensing_low
+    sdv_class: SAFETY_CRITICAL
+    domain: adas
+    link: multigige_1g
+    rate_hz: 2.0                # config
+    payload_bytes: 380
+    code_qos: { reliability: reliable, history: keep_last, depth: 10 }
+
+  # ---- localization -----------------------------------------------------
+  - topic: /localization/kinematic_state
+    type: nav_msgs/msg/Odometry
+    bucket: localization
+    sdv_class: SAFETY_CRITICAL
+    domain: chassis
+    link: multigige_1g
+    rate_hz: 19.0               # measured
+    payload_bytes: 728
+    code_qos: { reliability: reliable, history: keep_last, depth: 10 }
+    note: "EKF 출력. 차량의 현재 위치이자 제어의 기준."
+
+  - topic: /localization/multimode/pose_with_covariance
+    type: geometry_msgs/msg/PoseWithCovarianceStamped
+    bucket: localization
+    sdv_class: SAFETY_CRITICAL
+    domain: chassis
+    link: multigige_1g
+    rate_hz: 50.0               # pose_merger output_rate_hz
+    payload_bytes: 380
+    code_qos: { reliability: reliable, history: keep_last, depth: 10 }
+    note: "이중측위 융합 출력. 서비스 연속성 검증의 관측점."
+
+  - topic: /localization/pose_estimator/pose_with_covariance
+    type: geometry_msgs/msg/PoseWithCovarianceStamped
+    bucket: localization
+    sdv_class: SAFETY_CRITICAL
+    domain: chassis
+    link: multigige_1g
+    rate_hz: 10.0
+    rate_basis: "코드에 없음. NDT 는 downsample 입력 9.8 Hz 를 따른다고 가정."
+    payload_bytes: 380
+    code_qos: { reliability: reliable, history: keep_last, depth: 10 }
+
+  # ---- planning ---------------------------------------------------------
+  - topic: /planning/scenario_planning/trajectory
+    type: autoware_planning_msgs/msg/Trajectory
+    bucket: planning
+    sdv_class: REALTIME
+    domain: adas
+    link: multigige_1g
+    rate_hz: 6.5                # measured "~6-7 Hz"
+    payload_bytes: 18120        # 151점 × 120 B
+    payload_basis: "Town01 궤적 151점, TrajectoryPoint 약 120 B"
+    code_qos: { reliability: reliable, history: keep_last, depth: 1 }
+
+  - topic: /planning/mission_planning/route
+    type: autoware_planning_msgs/msg/LaneletRoute
+    bucket: planning
+    sdv_class: BULK_DATA
+    domain: adas
+    link: multigige_1g
+    rate_hz: 0.02               # 이벤트 구동. 50 s 당 1회로 잡는다.
+    rate_basis: "이벤트 구동(래치). 승인 계산을 위한 보수적 대입값."
+    payload_bytes: 4096
+    durability: transient_local
+    code_qos: { reliability: reliable, durability: transient_local, depth: 1 }
+
+  # ---- control ----------------------------------------------------------
+  - topic: /external/selected/control_cmd
+    type: autoware_control_msgs/msg/Control
+    bucket: control
+    sdv_class: REDUNDANT_SAFETY
+    domain: chassis
+    link: multigige_1g
+    rate_hz: 100.0              # _teleop_tick create_timer(0.01)
+    payload_bytes: 80
+    durability: transient_local
+    code_qos: { reliability: reliable, durability: transient_local, depth: 1 }
+    note: "조향·가감속 명령. 끊기면 차가 선다."
+
+  - topic: /external/selected/gear_cmd
+    type: autoware_vehicle_msgs/msg/GearCommand
+    bucket: control
+    sdv_class: SAFETY_CRITICAL   # T1S 에 802.1CB 가 없다 — FINDINGS.md 1
+    domain: chassis
+    link: t1s_10m
+    rate_hz: 100.0
+    payload_bytes: 16
+    durability: transient_local
+    code_qos: { reliability: reliable, durability: transient_local, depth: 1 }
+    note: >
+      액추에이터 명령 — 10BASE-T1S 엣지 버스의 정당한 화물. 다만 이 구간은
+      단일 경로다: 멀티드롭 공유 매체에서 802.1CB 복제는 같은 선을 두 번
+      지나므로 의미가 없다. 이중화는 존 스위치 위쪽에서만 적용된다.
+
+  - topic: /control/command/actuation_cmd
+    type: tier4_vehicle_msgs/msg/ActuationCommandStamped
+    bucket: control
+    sdv_class: SAFETY_CRITICAL   # T1S 에 802.1CB 가 없다 — FINDINGS.md 1
+    domain: chassis
+    link: t1s_10m
+    rate_hz: 100.0
+    payload_bytes: 48
+    code_qos: { reliability: reliable, history: keep_last, depth: 1 }
+
+  # ---- vehicle_status ---------------------------------------------------
+  - topic: /vehicle/status/velocity_status
+    type: autoware_vehicle_msgs/msg/VelocityReport
+    bucket: vehicle_status
+    sdv_class: SAFETY_CRITICAL
+    domain: chassis
+    link: t1s_10m
+    rate_hz: 50.0
+    rate_basis: "코드에 없음. CAN 브리지 1:1 통과. 50 Hz 로 가정."
+    payload_bytes: 48
+    code_qos: { reliability: reliable, history: keep_last, depth: 10 }
+
+  - topic: /vehicle/status/steering_status
+    type: autoware_vehicle_msgs/msg/SteeringReport
+    bucket: vehicle_status
+    sdv_class: SAFETY_CRITICAL
+    domain: chassis
+    link: t1s_10m
+    rate_hz: 50.0
+    rate_basis: "코드에 없음. 50 Hz 로 가정."
+    payload_bytes: 24
+    code_qos: { reliability: reliable, history: keep_last, depth: 10 }
+
+  # ---- fault ------------------------------------------------------------
+  - topic: /roii/fault_report
+    type: std_msgs/msg/String
+    bucket: fault
+    sdv_class: REDUNDANT_SAFETY
+    domain: chassis
+    link: multigige_1g
+    rate_hz: 1.0                # create_timer(1.0)
+    payload_bytes: 512
+    code_qos: { reliability: reliable, history: keep_last, depth: 1 }
+    note: "결함 보고는 결함이 났을 때 도착해야 하므로 이중화 등급."
+
+  - topic: /adaptation/lidar_fault
+    type: std_msgs/msg/Bool
+    bucket: fault
+    sdv_class: SAFETY_CRITICAL   # T1S 에 802.1CB 가 없다 — FINDINGS.md 1
+    domain: chassis
+    link: t1s_10m
+    rate_hz: 10.0               # create_timer(0.1)
+    payload_bytes: 8
+    code_qos: { reliability: reliable, history: keep_last, depth: 5 }
+
+  - topic: /api/fail_safe/mrm_state
+    type: autoware_adapi_v1_msgs/msg/MrmState
+    bucket: fault
+    sdv_class: REDUNDANT_SAFETY
+    domain: chassis
+    link: multigige_1g
+    rate_hz: 1.0
+    rate_basis: "래치 토픽. 이벤트 구동이나 보수적으로 1 Hz 대입."
+    payload_bytes: 32
+    durability: transient_local
+    code_qos: { reliability: reliable, durability: transient_local, depth: 1 }
+
+  # ---- reconfiguration --------------------------------------------------
+  - topic: /multimode/active_mode
+    type: std_msgs/msg/String
+    bucket: reconfiguration
+    sdv_class: REDUNDANT_SAFETY
+    domain: chassis
+    link: multigige_1g
+    rate_hz: 20.0               # create_timer(0.05)
+    payload_bytes: 32
+    code_qos: { reliability: reliable, history: keep_last, depth: 1 }
+
+  - topic: /multimode/status
+    type: std_msgs/msg/String
+    bucket: reconfiguration
+    sdv_class: SAFETY_CRITICAL
+    domain: chassis
+    link: multigige_1g
+    rate_hz: 50.0               # pose_merger tick
+    payload_bytes: 256
+    code_qos: { reliability: reliable, history: keep_last, depth: 1 }
+
+  - topic: /roii/reconfig_status
+    type: std_msgs/msg/String
+    bucket: reconfiguration
+    sdv_class: SAFETY_CRITICAL
+    domain: chassis
+    link: multigige_1g
+    rate_hz: 0.5                # create_timer(2.0)
+    payload_bytes: 256
+    code_qos: { reliability: reliable, history: keep_last, depth: 1 }
+    note: "roii_watchdog 이 발행. 삭제된 roii_reconfig_manager 가 아니다."
+
+  # ---- map --------------------------------------------------------------
+  - topic: /map/pointcloud_map
+    type: sensor_msgs/msg/PointCloud2
+    bucket: map
+    sdv_class: BULK_DATA
+    domain: diagnostics
+    link: multigige_1g
+    rate_hz: 0.005              # 부팅 시 1회. 200 s 당 1회로 대입.
+    rate_basis: "래치, 부팅 1회. 승인 계산용 보수적 대입값."
+    payload_bytes: 26832883     # pangyo_regen pointcloud_map.pcd 실제 크기
+    durability: transient_local
+    code_qos: { reliability: reliable, durability: transient_local, depth: 1 }
+    note: "이 등급이 존재하는 이유. 8 MB lanelet2 지도가 기본 소켓 버퍼에서 조각 유실됐다."
+
+  # ---- diagnostics ------------------------------------------------------
+  - topic: /diagnostics
+    type: diagnostic_msgs/msg/DiagnosticArray
+    bucket: diagnostics
+    sdv_class: BEST_EFFORT
+    domain: diagnostics
+    link: multigige_1g
+    rate_hz: 1.0                # create_timer(1.0)
+    payload_bytes: 1024
+    code_qos: { reliability: reliable, history: keep_last, depth: 5 }
+
+  - topic: /roii/lidar_health
+    type: std_msgs/msg/String
+    bucket: diagnostics
+    sdv_class: BEST_EFFORT
+    domain: diagnostics
+    link: multigige_1g
+    rate_hz: 1.0
+    payload_bytes: 512
+    code_qos: { reliability: reliable, history: keep_last, depth: 1 }
+
+  # ---- ui ---------------------------------------------------------------
+  - topic: ws://:8765/ws
+    type: websocket/json
+    bucket: ui
+    sdv_class: BEST_EFFORT
+    domain: infotainment
+    link: multigige_1g
+    rate_hz: 10.0               # HMI gateway BROADCAST_HZ
+    payload_bytes: 4096
+    code_qos: { reliability: reliable }
+    note: "ROS 토픽이 아니지만 같은 IVN 링크를 쓴다. 대역 계획에 포함한다."
