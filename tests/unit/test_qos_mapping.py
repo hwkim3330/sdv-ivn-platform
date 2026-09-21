@@ -1,0 +1,261 @@
+"""Unit tests for the QoS mapper — the normative behaviour of Part 3 and Part 4.
+
+These are the tests a second implementation has to pass to claim conformance,
+so they assert on the profile's promises rather than on this implementation's
+internals.
+"""
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "middleware"))
+
+from qos.mapper import QosRegistry, StreamRequest, AdmissionError, _frames_for, WIRE_OVERHEAD
+from core.deploy import CapabilityGate, Waiver
+
+
+@pytest.fixture(scope="module")
+def reg():
+    return QosRegistry()
+
+
+# --- the profile itself ----------------------------------------------------
+
+def test_five_classes_with_stable_ids(reg):
+    ids = {c["id"] for c in reg.classes.values()}
+    assert ids == {"SDV_QOS_0", "SDV_QOS_1", "SDV_QOS_2", "SDV_QOS_3", "SDV_QOS_4"}
+
+
+def test_every_class_has_a_distinct_priority(reg):
+    pcps = [c["pcp"] for c in reg.classes.values()]
+    assert len(pcps) == len(set(pcps))
+
+
+def test_priority_rises_with_urgency(reg):
+    order = ["BEST_EFFORT", "BULK_DATA", "REALTIME", "SAFETY_CRITICAL", "REDUNDANT_SAFETY"]
+    pcps = [reg.classes[n]["pcp"] for n in order]
+    assert pcps == sorted(pcps), f"priorities out of order: {pcps}"
+
+
+def test_kpi_classes_carry_the_project_targets(reg):
+    """5 ms end to end and 2.5 ms jitter are the project's measurable targets;
+    if they drift out of the profile the conformance tests stop testing them."""
+    for name in ("SAFETY_CRITICAL", "REDUNDANT_SAFETY"):
+        c = reg.classes[name]
+        assert c["latency_budget_ms"] == 5.0
+        assert c["jitter_budget_ms"] == 2.5
+
+
+def test_only_the_redundant_class_asks_for_frer(reg):
+    redundant = {n for n, c in reg.classes.items() if c["redundancy"] != "none"}
+    assert redundant == {"REDUNDANT_SAFETY"}
+
+
+# --- framing ---------------------------------------------------------------
+
+def test_wire_cost_exceeds_payload(reg):
+    """A bandwidth plan that charges payload only is optimistic by the overhead
+    of every frame, which for small control messages is most of the traffic."""
+    s = reg.resolve(StreamRequest("t", "SAFETY_CRITICAL", 64, 10.0))
+    assert s.wire_bytes_per_sample > 64 + WIRE_OVERHEAD
+
+
+def test_large_sample_is_fragmented_and_each_fragment_pays_overhead():
+    frames, wire = _frames_for(1_900_000)
+    assert frames > 1300, "a 1.9 MB LiDAR scan is not one frame"
+    assert wire > 1_900_000 + frames * WIRE_OVERHEAD * 0.9
+
+
+def test_one_small_sample_is_one_frame():
+    frames, _ = _frames_for(100)
+    assert frames == 1
+
+
+def test_minimum_ethernet_payload_is_respected():
+    """A 1-byte sample still costs a 64-byte minimum frame on the wire."""
+    _, wire = _frames_for(1)
+    assert wire >= 46 + WIRE_OVERHEAD
+
+
+# --- DDS derivation --------------------------------------------------------
+
+def test_deadline_tightens_to_the_stream_period(reg):
+    """A 100 Hz stream in a class with a 1 s deadline must still report a
+    missed sample promptly, or the class hides the fault it exists to catch."""
+    s = reg.resolve(StreamRequest("t", "BULK_DATA", 512, 10.0))
+    assert s.dds["deadline_ms"] <= 20.0
+
+
+def test_safety_classes_are_reliable_and_keep_one_sample(reg):
+    for name in ("SAFETY_CRITICAL", "REDUNDANT_SAFETY"):
+        s = reg.resolve(StreamRequest("t", name, 128, 5.0))
+        assert s.dds["reliability"] == "RELIABLE"
+        assert s.dds["history"] == {"kind": "KEEP_LAST", "depth": 1}
+
+
+def test_realtime_is_best_effort(reg):
+    """Retransmitting a sensor sample that a newer one has already replaced
+    spends the link on stale data."""
+    s = reg.resolve(StreamRequest("t", "REALTIME", 4096, 10.0))
+    assert s.dds["reliability"] == "BEST_EFFORT"
+
+
+def test_durability_override_reaches_the_dds_qos(reg):
+    s = reg.resolve(StreamRequest("map", "BULK_DATA", 8_000_000, 60000.0,
+                                  durability="transient_local"))
+    assert s.dds["durability"] == "TRANSIENT_LOCAL"
+
+
+def test_transport_priority_equals_pcp(reg):
+    """The chain TRANSPORT_PRIORITY -> SO_PRIORITY -> egress-qos-map -> PCP only
+    works if the first and last agree."""
+    for name in reg.classes:
+        s = reg.resolve(StreamRequest("t", name, 128, 20.0))
+        assert s.dds["transport_priority"] == s.pcp
+
+
+# --- admission -------------------------------------------------------------
+
+def test_t1s_refuses_sensor_payload(reg):
+    with pytest.raises(AdmissionError, match="not admissible"):
+        reg.resolve(StreamRequest("lidar", "REALTIME", 1_900_000, 100.0, link="t1s_10m"))
+
+
+def test_t1s_accepts_control_and_state(reg):
+    s = reg.resolve(StreamRequest("cmd", "SAFETY_CRITICAL", 64, 20.0, link="t1s_10m"))
+    assert s.rate_mbps < 10
+
+
+def test_t1s_degrades_tas_to_strict_priority_because_it_has_no_gates(reg):
+    s = reg.resolve(StreamRequest("cmd", "SAFETY_CRITICAL", 64, 20.0, link="t1s_10m"))
+    assert s.tsn["shaper"] == "strict_priority"
+
+
+def test_redundant_class_is_refused_on_a_link_without_frer(reg):
+    with pytest.raises(AdmissionError, match="802.1CB"):
+        reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 64, 20.0, link="t1s_10m"))
+
+
+def test_a_stream_too_big_for_its_link_is_refused(reg):
+    with pytest.raises(AdmissionError):
+        reg.resolve(StreamRequest("huge", "REALTIME", 2_000_000, 1.0, link="multigige_1g"))
+
+
+def test_frer_is_charged_twice_at_admission(reg):
+    """Replication doubles what crosses the network. A plan that counts it once
+    passes on paper and saturates in the lab."""
+    s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 1000, 1.0))
+    single = reg.resolve(StreamRequest("cmd2", "SAFETY_CRITICAL", 1000, 1.0))
+    a = reg.admit([s], "multigige_1g")
+    b = reg.admit([single], "multigige_1g")
+    assert a["offered_mbps"] == pytest.approx(b["offered_mbps"] * 2, rel=1e-6)
+
+
+def test_admission_ceiling_is_below_the_line_rate(reg):
+    streams = [reg.resolve(StreamRequest(f"s{i}", "REALTIME", 1400, 0.1))
+               for i in range(8)]
+    v = reg.admit(streams, "multigige_1g")
+    assert v["utilisation"] > 0.75
+    assert not v["admitted"] and "ceiling" in v["reason"]
+
+
+# --- 802.1Qbv --------------------------------------------------------------
+
+def test_gate_control_list_fits_its_cycle(reg):
+    streams = [reg.resolve(StreamRequest("c", "SAFETY_CRITICAL", 128, 5.0)),
+               reg.resolve(StreamRequest("r", "REDUNDANT_SAFETY", 128, 5.0))]
+    gcl = reg.build_gate_control_list(streams, 1000)
+    total = sum(e["time_interval_us"] for e in gcl["entries"])
+    assert total == pytest.approx(gcl["cycle_time_us"], rel=1e-9)
+
+
+def test_gate_control_list_includes_a_guard_band(reg):
+    streams = [reg.resolve(StreamRequest("c", "SAFETY_CRITICAL", 128, 5.0))]
+    gcl = reg.build_gate_control_list(streams, 1000)
+    assert gcl["guard_band_us"] > 0
+
+
+def test_impossible_schedule_is_an_error_not_a_rounding(reg):
+    """A cycle too short for its own guard band must fail loudly. Rounding the
+    window down instead produces a schedule the hardware accepts and misses."""
+    streams = [reg.resolve(StreamRequest("c", "SAFETY_CRITICAL", 1400, 5.0))]
+    with pytest.raises(AdmissionError, match="cycle"):
+        reg.build_gate_control_list(streams, 1000, cycle_ms=0.001)
+
+
+def test_cycle_is_the_shortest_period_so_every_stream_gets_a_window(reg):
+    streams = [reg.resolve(StreamRequest("a", "SAFETY_CRITICAL", 128, 20.0)),
+               reg.resolve(StreamRequest("b", "REDUNDANT_SAFETY", 128, 4.0))]
+    gcl = reg.build_gate_control_list(streams, 1000)
+    assert gcl["cycle_time_us"] == pytest.approx(4000.0)
+
+
+# --- 802.1Qav --------------------------------------------------------------
+
+def test_send_slope_is_negative(reg):
+    c = reg.cbs_parameters(100, 1000, 1500)
+    assert c["send_slope_kbps"] < 0
+
+
+def test_idle_slope_reserves_the_stream_rate(reg):
+    c = reg.cbs_parameters(165.5, 1000, 1500)
+    assert c["idle_slope_kbps"] == pytest.approx(165500, rel=1e-6)
+
+
+def test_preemption_lowers_the_credit_a_class_must_accrue(reg):
+    with_pre = reg.cbs_parameters(100, 1000, 1500, preemptable_interference=True)
+    without = reg.cbs_parameters(100, 1000, 1500, preemptable_interference=False)
+    assert with_pre["hi_credit_bits"] < without["hi_credit_bits"]
+
+
+# --- capability gate -------------------------------------------------------
+
+def test_missing_frer_refuses_rather_than_downgrades():
+    reg = QosRegistry()
+    gate = CapabilityGate()
+    s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 128, 5.0))
+    plan = gate.plan([s], "lan9692", registry=reg)
+    assert not plan.ok
+    assert any(r.capability == "frer" for r in plan.refusals)
+    assert s.tsn["redundancy"] == "frer_dual", "refusal must not mutate the stream"
+
+
+def test_unmeasured_capability_is_refused_differently_from_absent_one():
+    reg = QosRegistry()
+    gate = CapabilityGate()
+    s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 128, 5.0))
+    unknown = gate.plan([s], "ivn_chip_10g", registry=reg)
+    absent = gate.plan([s], "lan9692", registry=reg)
+    assert any("미확정" in r.reason for r in unknown.refusals)
+    assert not any("미확정" in r.reason for r in absent.refusals)
+
+
+def test_a_waiver_deploys_but_marks_the_stream_degraded():
+    reg = QosRegistry()
+    gate = CapabilityGate()
+    s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 128, 5.0))
+    w = [Waiver("*", "lan9692", "frer", "single path for this bench run", "tester")]
+    plan = gate.plan([s], "lan9692", registry=reg, waivers=w)
+    assert plan.ok and plan.degraded
+    assert s.tsn["redundancy"] == "none", "a waiver must remove the feature, not hide it"
+    assert "frer" in s.tsn["degraded"]
+
+
+def test_waiver_for_a_different_device_does_not_apply():
+    reg = QosRegistry()
+    gate = CapabilityGate()
+    s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 128, 5.0))
+    w = [Waiver("*", "kontron_d10", "frer", "irrelevant", "tester")]
+    assert not gate.plan([s], "lan9692", registry=reg, waivers=w).ok
+
+
+def test_kontron_d10_can_do_frer_but_not_preemption():
+    reg = QosRegistry()
+    gate = CapabilityGate()
+    s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 128, 5.0))
+    refusals = gate.check(s, "kontron_d10")
+    caps = {r.capability for r in refusals}
+    assert "frer" not in caps and "preemption" in caps

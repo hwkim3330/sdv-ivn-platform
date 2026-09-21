@@ -1,0 +1,125 @@
+# What each bridge can actually be configured to do.
+#
+# The mapper derives an ideal configuration from the QoS class. This file is
+# what stops that ideal being written to hardware that will silently ignore it.
+# Every "false" below is a measured or documented absence, not a guess, and
+# carries the evidence that established it.
+#
+# The rule the platform enforces: a class whose requirement a device cannot
+# meet is a REFUSAL at admission time, never a quiet downgrade. A stream that
+# thinks it has FRER and does not is worse than one that knows it has none.
+
+devices:
+
+  lan9692:
+    vendor: Microchip
+    description: "LAN9692 multi-gig TSN 스위치 (KETI 벤치의 주 대상)"
+    transport: coreconf        # CoAP + CBOR + SID over MUP1 serial
+    capabilities:
+      tas: true                # ieee802-dot1q-sched-bridge
+      cbs: true                # mchp-velocitysp-port eth-qos traffic-class-shapers
+      psfp: true               # ieee802-dot1q-psfp
+      preemption: true         # ieee802-dot1q-preemption
+      ptp: true                # ieee1588-ptp@2022-08-30
+      stream_identification: true
+      frer: false
+      vlan: true
+      macsec: false
+    evidence:
+      frer: >
+        YANG 카탈로그에 ieee802-dot1cb-stream-identification(+types, +dev) 은 있으나
+        ieee802-dot1cb-frer 이 아예 없다. sequence-generation / sequence-recovery
+        노드가 카탈로그 어디에도 없고 벤더 매뉴얼로 재확인했다. 즉 이 장비에서
+        802.1CB 는 '식별까지'이고 복제·제거는 다른 곳에서 해야 한다.
+        (keti-reconfig/README.md, "FRER 은 이 장비에 없다")
+      macsec: "카탈로그에 해당 모델 없음"
+    yang_paths:
+      tas: "/ietf-interfaces:interfaces/interface[name='{port}']/ieee802-dot1q-bridge:bridge-port/ieee802-dot1q-sched-bridge:gate-parameter-table"
+      cbs: "/ietf-interfaces:interfaces/interface[name='{port}']/mchp-velocitysp-port:eth-qos/config/traffic-class-shapers[traffic-class={tc}]/credit-based/idle-slope"
+      preemption: "/ietf-interfaces:interfaces/interface[name='{port}']/ieee802-dot1q-preemption-bridge:frame-preemption-parameters"
+
+  lan9662:
+    vendor: Microchip
+    description: "LAN9662 (1세대 벤치. 9692 와 같은 YANG 계열)"
+    transport: coreconf
+    capabilities:
+      tas: true
+      cbs: true
+      psfp: true
+      preemption: true
+      ptp: true
+      stream_identification: true
+      frer: false
+      vlan: true
+      macsec: false
+    evidence:
+      frer: "9692 와 동일 — 카탈로그에 ieee802-dot1cb-frer 없음"
+
+  kontron_d10:
+    vendor: Kontron
+    description: "D10 WebStaX 스위치. 이 랙에서 FRER 이 실제로 동작하는 유일한 장비."
+    transport: json_rpc        # POST http://<host>/json_rpc
+    capabilities:
+      tas: true
+      cbs: true
+      psfp: true
+      preemption: false
+      ptp: true
+      stream_identification: true
+      frer: true
+      vlan: true
+      macsec: false
+    evidence:
+      frer: >
+        실기에서 무결절 실증됨 — B 스위치의 Gi1/6 을 물리적으로 끊어도 수신이
+        유지됐다. 단, FRER 을 걸려면 인그레스에 VCL 스트림을 먼저 묶어야 한다.
+      link_rate: >
+        "2.5G" 로 표기된 광 포트의 실제 상한은 2.5G 이고 10G 가 아니다.
+        10G-SR 모듈은 링크가 올라오지 않는다. 스위치 간 연결은 구리 Gi 포트를 쓸 것.
+
+  ivn_chip_10g:
+    vendor: KETI/과제
+    description: "개발 대상 Multi-GigE 통신반도체. 아직 실물 없음."
+    transport: tbd
+    capabilities:
+      tas: null                # null = 미확정. false 와 구분한다.
+      cbs: null
+      psfp: null
+      preemption: null
+      ptp: null
+      stream_identification: null
+      frer: null
+      vlan: null
+      macsec: null
+    targets:
+      # 과제가 겨누는 값. 실측으로 대체될 자리이지 근거가 아니다.
+      link_rate_mbps: 10000
+      edge_to_hpc_latency_ms: 5.0
+      max_jitter_ms: 2.5
+      redundancy: "IEEE 802.1CB"
+
+  ivn_chip_10m:
+    vendor: KETI/과제
+    description: "개발 대상 10BASE-T1S 통신반도체. 아직 실물 없음."
+    transport: tbd
+    capabilities:
+      tas: false               # 멀티드롭 세그먼트에 게이트가 없다
+      cbs: false
+      psfp: null
+      preemption: false        # 10BASE-T1S 에 802.3br 없음
+      ptp: null
+      stream_identification: null
+      frer: false
+      vlan: true
+      macsec: false
+      plca: true               # 802.3cg PLCA 가 이 매체의 중재 수단
+    targets:
+      link_rate_mbps: 10
+      topology: "multidrop, PLCA"
+
+# 어떤 능력이 어떤 QoS 클래스 요구와 맞물리는지. 승인 검사가 이 표를 읽는다.
+requirement_map:
+  frer_dual: frer
+  tas: tas
+  cbs: cbs
+  express: preemption
