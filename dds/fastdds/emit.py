@@ -53,8 +53,9 @@ def writer_profile(stream, profile_name: str | None = None) -> ET.Element:
     ET.SubElement(rel, "kind").text = q["reliability"]
     dur = ET.SubElement(qos, "durability")
     ET.SubElement(dur, "kind").text = q["durability"]
-    dl = ET.SubElement(qos, "deadline")
-    _duration(dl, "period", q["deadline_ms"])
+    if q["deadline_ms"] is not None:
+        dl = ET.SubElement(qos, "deadline")
+        _duration(dl, "period", q["deadline_ms"])
     if "latency_budget_ms" in q:
         lb = ET.SubElement(qos, "latencyBudget")
         _duration(lb, "duration", q["latency_budget_ms"])
@@ -90,8 +91,9 @@ def reader_profile(stream, profile_name: str | None = None) -> ET.Element:
     ET.SubElement(rel, "kind").text = q["reliability"]
     dur = ET.SubElement(qos, "durability")
     ET.SubElement(dur, "kind").text = q["durability"]
-    dl = ET.SubElement(qos, "deadline")
-    _duration(dl, "period", q["deadline_ms"])
+    if q["deadline_ms"] is not None:
+        dl = ET.SubElement(qos, "deadline")
+        _duration(dl, "period", q["deadline_ms"])
     if "liveliness" in q:
         lv = ET.SubElement(qos, "liveliness")
         ET.SubElement(lv, "kind").text = q["liveliness"]["kind"]

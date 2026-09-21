@@ -82,11 +82,44 @@ def test_minimum_ethernet_payload_is_respected():
 
 # --- DDS derivation --------------------------------------------------------
 
-def test_deadline_tightens_to_the_stream_period(reg):
-    """A 100 Hz stream in a class with a 1 s deadline must still report a
-    missed sample promptly, or the class hides the fault it exists to catch."""
-    s = reg.resolve(StreamRequest("t", "BULK_DATA", 512, 10.0))
-    assert s.dds["deadline_ms"] <= 20.0
+def test_deadline_follows_the_stream_period(reg):
+    """DEADLINE is how far apart two samples may be, so it scales with the
+    period. A 100 Hz stream gets a deadline near 10 ms, not the class's cap."""
+    fast = reg.resolve(StreamRequest("f", "SAFETY_CRITICAL", 128, 10.0))
+    slow = reg.resolve(StreamRequest("s", "SAFETY_CRITICAL", 128, 50.0))
+    assert fast.dds["deadline_ms"] < slow.dds["deadline_ms"]
+
+
+def test_deadline_is_never_shorter_than_the_period(reg):
+    """The bug this rule exists for: a 5 ms deadline on a 10 ms stream makes
+    every correctly delivered sample a violation. The monitor reported 499
+    misses in 500 healthy samples before DEADLINE was separated from the
+    latency budget."""
+    for name in reg.classes:
+        for period in (1.0, 10.0, 100.0, 1000.0):
+            s = reg.resolve(StreamRequest("t", name, 128, period))
+            assert s.dds["deadline_ms"] >= period, f"{name} at {period} ms"
+
+
+def test_latency_budget_is_not_the_deadline(reg):
+    """The two are different quantities and the profile must keep them apart."""
+    s = reg.resolve(StreamRequest("t", "SAFETY_CRITICAL", 128, 10.0))
+    assert s.dds["latency_budget_ms"] == 5.0
+    assert s.dds["deadline_ms"] != s.dds["latency_budget_ms"]
+
+
+def test_a_slow_safety_stream_gets_a_proportionally_slow_deadline(reg):
+    """A fault report at 1 Hz deserves a 1.5 s deadline. An earlier version
+    capped the deadline per class and refused exactly this stream."""
+    s = reg.resolve(StreamRequest("fault", "SAFETY_CRITICAL", 128, 1000.0))
+    assert s.dds["deadline_ms"] == pytest.approx(1500.0)
+
+
+def test_event_driven_streams_have_no_deadline(reg):
+    """A latched route or map has no period, so any deadline on it is invented.
+    None means DURATION_INFINITE -- the policy is off, not zero."""
+    s = reg.resolve(StreamRequest("route", "BULK_DATA", 4096, 50000.0, event_driven=True))
+    assert s.dds["deadline_ms"] is None
 
 
 def test_safety_classes_are_reliable_and_keep_one_sample(reg):

@@ -16,6 +16,21 @@
 #   [KPI]     과제가 직접 겨누는 측정 목표 (Edge->HPC 5 ms, 지터 2.5 ms)
 #   [802.1DG] IEEE 802.1DG 차량용 TSN 프로파일 관행에 맞춘 값
 #   [KETI]    이 프로파일의 설계 선택. TTA 초안 전에 바뀔 수 있다.
+#
+# DEADLINE 과 지연 예산은 다른 것이다 (자주 섞인다)
+#   latency_budget_ms  토커가 보낸 뒤 리스너에 닿기까지. 과제 KPI 가 겨누는 값.
+#   deadline           샘플과 샘플 사이의 최대 간격. 발행이 멎은 것을 잡는 장치.
+#
+# 둘을 한 값으로 묶으면 정상 동작하는 스트림이 계속 위반으로 보고된다. 주기
+# 10 ms 스트림에 마감 5 ms 를 걸면 매 샘플이 위반이다 — 실제로 모니터를 붙이고
+# 나서 이 오류를 잡았다. 그래서 마감은 오로지 주기에서 파생한다:
+#
+#   deadline = 주기 x deadline_tolerance
+#
+# 등급 상한을 두려다 두 번째로 틀렸다. 1 Hz 로 도는 결함 보고에 1.5 s 마감은
+# 옳은 값인데 상한이 그것을 거부했다. 느린 안전 스트림이 문제가 아니라,
+# 래치(transient_local) 토픽처럼 애초에 주기가 없는 것에 주기를 지어낸 것이
+# 문제였다. 그런 스트림은 event_driven 으로 표시하고 마감을 끈다.
 
 version: "0.1.0"
 profile: sdv-ivn
@@ -51,7 +66,7 @@ classes:
     id: SDV_QOS_0
     description: "남는 대역만 쓴다. 로그, 통계, HMI 상태."
     latency_budget_ms: null
-    deadline_ms: null
+    deadline_tolerance: 10.0     # 주기의 몇 배까지 벌어져도 괜찮은가
     jitter_budget_ms: null
     pcp: 0
     traffic_class: 0
@@ -73,7 +88,7 @@ classes:
       lanelet2 지도가 기본 UDP 소켓 버퍼에서 조각 유실이 나 planner 가
       지도를 못 받았다 (autoware-keti/config/fastdds_udp.xml).
     latency_budget_ms: null
-    deadline_ms: 1000.0
+    deadline_tolerance: 5.0
     jitter_budget_ms: null
     pcp: 2
     traffic_class: 2
@@ -93,7 +108,7 @@ classes:
       주기적이고 마감이 있으나 한 샘플을 버려도 되는 것. 라이다, 카메라,
       IMU/GNSS, 궤적, 차량 상태. 다음 샘플이 곧 오므로 재전송이 오히려 해롭다.
     latency_budget_ms: 10.0
-    deadline_ms: 20.0
+    deadline_tolerance: 2.0
     jitter_budget_ms: 5.0
     pcp: 4
     traffic_class: 4
@@ -113,8 +128,8 @@ classes:
       제어 명령, 측위 자세, 결함 보고. 놓치면 안전이 깨지지만 경로 이중화까지는
       요구하지 않는 것. 과제 KPI 가 직접 겨누는 등급.
     latency_budget_ms: 5.0        # [KPI] Edge -> HPC 최대 지연 5 ms
-    deadline_ms: 5.0              # [KPI]
     jitter_budget_ms: 2.5         # [KPI] 최대 지터 2.5 ms
+    deadline_tolerance: 1.5       # DDS DEADLINE = 주기 x 1.5. 지연 예산과 다른 것이다.
     pcp: 6                        # [802.1DG]
     traffic_class: 6
     shaper: tas                   # 802.1Qbv 보호 윈도우
@@ -135,8 +150,8 @@ classes:
       끊기지 않아야 하는 스트림. 802.1CB 로 두 경로에 복제하고 수신측에서 제거한다.
       복제분이 네트워크 대역을 두 배로 먹는다는 점은 승인 계산에 반영된다.
     latency_budget_ms: 5.0
-    deadline_ms: 5.0
     jitter_budget_ms: 2.5
+    deadline_tolerance: 1.5
     pcp: 7                        # policy.allow_pcp7_for_applications 참조
     traffic_class: 7
     shaper: tas

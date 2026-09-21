@@ -159,6 +159,7 @@ topics:
     sdv_class: BULK_DATA
     domain: adas
     link: multigige_1g
+    event_driven: true          # 래치. 아래 rate_hz 는 대역 예산용 대입값일 뿐이다.
     rate_hz: 0.02               # 이벤트 구동. 50 s 당 1회로 잡는다.
     rate_basis: "이벤트 구동(래치). 승인 계산을 위한 보수적 대입값."
     payload_bytes: 4096
@@ -254,6 +255,7 @@ topics:
     sdv_class: REDUNDANT_SAFETY
     domain: chassis
     link: multigige_1g
+    event_driven: true          # 래치. 아래 rate_hz 는 대역 예산용 대입값일 뿐이다.
     rate_hz: 1.0
     rate_basis: "래치 토픽. 이벤트 구동이나 보수적으로 1 Hz 대입."
     payload_bytes: 32
@@ -299,6 +301,7 @@ topics:
     sdv_class: BULK_DATA
     domain: diagnostics
     link: multigige_1g
+    event_driven: true          # 래치. 아래 rate_hz 는 대역 예산용 대입값일 뿐이다.
     rate_hz: 0.005              # 부팅 시 1회. 200 s 당 1회로 대입.
     rate_basis: "래치, 부팅 1회. 승인 계산용 보수적 대입값."
     payload_bytes: 26832883     # pangyo_regen pointcloud_map.pcd 실제 크기

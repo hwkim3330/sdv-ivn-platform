@@ -42,7 +42,8 @@ def build(catalog: dict, registry: QosRegistry):
             name=t["topic"], qos_class=t["sdv_class"],
             payload_bytes=t["payload_bytes"], period_ms=1000.0 / t["rate_hz"],
             domain=t.get("domain"), link=t.get("link", "multigige_1g"),
-            durability=t.get("durability"), ros_topic=t["topic"],
+            durability=t.get("durability"), event_driven=t.get("event_driven", False),
+            ros_topic=t["topic"],
         )
         try:
             resolved.append(registry.resolve(req))

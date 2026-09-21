@@ -31,7 +31,7 @@ DDS 의 QoS 정책은 22 개이고 대부분 서로 영향을 준다. 이것을 
 | reliability | BEST_EFFORT |
 | durability | VOLATILE |
 | history | KEEP_LAST 1 |
-| deadline | 없음 |
+| deadline | 주기 × 10 |
 | latency budget | 없음 |
 | PCP / TC | 0 / 0 |
 | DSCP | 0 |
@@ -54,7 +54,7 @@ DDS 의 QoS 정책은 22 개이고 대부분 서로 영향을 준다. 이것을 
 | reliability | RELIABLE |
 | durability | TRANSIENT_LOCAL |
 | history | KEEP_LAST 1 |
-| deadline | 1 s |
+| deadline | 주기 × 5 |
 | PCP / TC | 2 / 2 |
 | DSCP | 10 (AF11) |
 | 셰이퍼 | CBS |
@@ -76,7 +76,7 @@ TRANSIENT_LOCAL 이 기본인 이유는 지도의 경우 늦게 붙는 구독자
 | reliability | BEST_EFFORT |
 | durability | VOLATILE |
 | history | KEEP_LAST 2 |
-| deadline | 20 ms |
+| deadline | 주기 × 2 |
 | latency budget | 10 ms |
 | jitter budget | 5 ms |
 | PCP / TC | 4 / 4 |
@@ -104,7 +104,7 @@ BEST_EFFORT 인 것이 이 등급의 요점이다. 이미 더 새로운 샘플�
 | reliability | RELIABLE | |
 | durability | VOLATILE | |
 | history | KEEP_LAST 1 | |
-| deadline | 5 ms | KPI |
+| deadline | 주기 × 1.5 | |
 | latency budget | 5 ms | KPI |
 | jitter budget | 2.5 ms | KPI |
 | liveliness | AUTOMATIC | |
@@ -128,6 +128,43 @@ SDV_QOS_3 과 같되 다음이 다르다.
 | 이중화 | 802.1CB frer_dual, 경로 2 |
 
 복제분이 네트워크를 지나가므로 **승인 계산에서 대역을 두 배로 센다.**
+
+## 2.6 DEADLINE 은 지연 예산이 아니다 (필수)
+
+두 값은 자주 섞이고, 섞으면 정상 동작하는 스트림이 계속 위반으로 보고된다.
+
+| 값 | 뜻 |
+|---|---|
+| `latency_budget_ms` | 토커가 보낸 뒤 리스너에 닿기까지. **KPI 가 겨누는 값.** |
+| DEADLINE | 샘플과 샘플 사이의 최대 간격. 발행이 멎은 것을 잡는 장치. |
+
+DEADLINE 은 **오로지 주기에서 파생한다.**
+
+```
+deadline = 주기 × deadline_tolerance
+```
+
+| 등급 | tolerance |
+|---|---|
+| BEST_EFFORT | 10.0 |
+| BULK_DATA | 5.0 |
+| REALTIME | 2.0 |
+| SAFETY_CRITICAL | 1.5 |
+| REDUNDANT_SAFETY | 1.5 |
+
+이 규칙은 실측으로 얻었다. 초안에서는 SAFETY_CRITICAL 의 DEADLINE 을 KPI 와
+같은 5 ms 로 두었는데, 주기 10 ms 인 제어 스트림을 모니터에 걸자 건강한 표본
+500개 중 **499개가 마감 위반**으로 집계됐다. 100 Hz 로 도는 발행자가 5 ms 마다
+샘플을 낼 수는 없다.
+
+등급별 상한(`deadline_max_ms`)을 두는 두 번째 안도 틀렸다. 1 Hz 로 도는 결함
+보고에 1.5 s 마감은 옳은 값인데 상한이 그것을 거부했다. 느린 안전 스트림이
+문제가 아니었다.
+
+진짜 문제는 **주기가 없는 스트림에 주기를 지어낸 것**이다. 래치
+(transient_local) 토픽 — 경로, 지도, MRM 상태 — 은 이벤트로 한 번 발행되고
+끝난다. 이런 스트림은 `event_driven` 으로 표시하고 **DEADLINE 을 끈다**
+(DURATION_INFINITE). 대역 예산을 위해 대입한 주기는 대역 계산에만 쓴다.
 
 ## 3. PCP 7 을 애플리케이션에 주는 것에 대하여
 

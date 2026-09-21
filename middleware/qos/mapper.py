@@ -93,6 +93,7 @@ class StreamRequest:
     link: str = "multigige_1g"
     redundancy: str | None = None        # override; "none" opts out of FRER
     durability: str | None = None        # override; the map case needs transient_local
+    event_driven: bool = False           # latched/event topic: no meaningful period
     ros_topic: str = ""                  # provenance, when derived from a catalogue
 
     @property
@@ -168,23 +169,39 @@ class QosRegistry:
             seen[pcp] = name
             if c["default_domain"] not in self.domains:
                 raise ValueError(f"{name}: unknown domain {c['default_domain']}")
-            lat, dl = c["latency_budget_ms"], c["deadline_ms"]
-            if lat is not None and dl is not None and lat > dl:
-                raise ValueError(f"{name}: latency budget {lat} exceeds deadline {dl}")
+            if c.get("deadline_tolerance", 2.0) < 1.0:
+                raise ValueError(
+                    f"{name}: deadline tolerance {c['deadline_tolerance']} is below 1.0, "
+                    "which asks publishers to be faster than their own period")
 
     # -- DDS -----------------------------------------------------------------
     def dds_qos(self, cls: dict[str, Any], req: StreamRequest) -> dict[str, Any]:
         """The abstract DDS QoS policy set. Vendor XML is generated from this,
         never the other way round.
 
-        DEADLINE is the class deadline or the stream's own period, whichever is
-        tighter: a 100 Hz stream in a class whose deadline is 1 s should still
-        report a missed sample within 10 ms, otherwise the class hides the fault.
+        DEADLINE is derived from the stream's own period, not from the class's
+        latency target. They are different quantities that are easy to conflate:
+        LATENCY_BUDGET is how long a sample may take to arrive, DEADLINE is how
+        far apart two samples may be. Setting DEADLINE to a 5 ms latency target
+        on a 10 ms stream makes every correctly delivered sample a violation --
+        which is exactly what the monitor reported the first time it was run
+        against this profile, 499 misses in 500 healthy samples.
+
+        So: deadline = period x the class's tolerance, and nothing else. A first
+        attempt also capped it per class, which was wrong a second time: a fault
+        report published at 1 Hz deserves a 1.5 s deadline, and the cap refused
+        it. The stream that really has no sensible deadline is the latched,
+        event-driven one -- a route, a map, an MRM state -- where a period had
+        to be invented to budget bandwidth at all. Those declare event_driven
+        and get no DEADLINE, rather than a fabricated one.
         """
-        deadline = cls["deadline_ms"]
-        deadline = req.period_ms if deadline is None else min(deadline, req.period_ms * 2)
+        if req.event_driven:
+            deadline = None
+        else:
+            deadline = req.period_ms * cls.get("deadline_tolerance", 2.0)
         q: dict[str, Any] = {
             "reliability": "RELIABLE" if cls["reliability"] == "reliable" else "BEST_EFFORT",
+            # None means DURATION_INFINITE: the policy is off, not zero.
             "durability": {"volatile": "VOLATILE", "transient_local": "TRANSIENT_LOCAL"}[cls["durability"]],
             "history": {"kind": "KEEP_LAST" if cls["history"]["kind"] == "keep_last" else "KEEP_ALL",
                         "depth": cls["history"]["depth"]},
@@ -198,7 +215,8 @@ class QosRegistry:
         # best-effort sensor class the deadline already reports it and an extra
         # assertion is just traffic in the class we are trying to protect.
         if cls.get("liveliness") == "automatic":
-            q["liveliness"] = {"kind": "AUTOMATIC", "lease_duration_ms": max(100.0, deadline * 3)}
+            lease = max(100.0, (deadline if deadline is not None else req.period_ms) * 3)
+            q["liveliness"] = {"kind": "AUTOMATIC", "lease_duration_ms": lease}
         # RESOURCE_LIMITS bound the writer so a stalled listener cannot grow a
         # queue into the memory of a safety task.
         if q["history"]["kind"] == "KEEP_LAST":

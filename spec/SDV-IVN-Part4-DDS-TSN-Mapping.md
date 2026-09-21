@@ -29,18 +29,21 @@
 | reliability | RELIABILITY | reliable → RELIABLE, best_effort → BEST_EFFORT |
 | durability | DURABILITY | 스트림이 덮어쓸 수 있다 |
 | history | HISTORY | 등급이 정한다 |
-| deadline | DEADLINE | **등급 마감과 스트림 주기×2 중 작은 쪽** |
+| deadline | DEADLINE | **주기 × 등급 tolerance.** event_driven 이면 끈다 |
 | latency budget | LATENCY_BUDGET | 등급 값 그대로 |
 | liveliness | LIVELINESS | 등급이 automatic 일 때만, lease = max(100 ms, 마감×3) |
 | PCP | TRANSPORT_PRIORITY | 등급의 PCP 와 **같은 값** |
 | DSCP | (전송 설정) | IP TOS 로 표시 |
 | — | RESOURCE_LIMITS | KEEP_LAST 일 때 history 깊이로 제한 |
 
-### 2.1 마감이 주기를 따라 조여지는 이유
+### 2.1 DEADLINE 이 주기에서만 나오는 이유
 
-100 Hz 스트림이 마감 1 초인 등급에 있으면, 샘플이 열 개 연속 빠져도 DDS 는
-아무 말도 하지 않는다. 등급이 잡으라고 만든 결함을 등급이 가린다. 그래서
-DEADLINE 은 등급 값과 **주기의 두 배** 중 작은 쪽으로 정한다.
+LATENCY_BUDGET 은 "얼마나 늦게 도착해도 되는가"이고 DEADLINE 은 "샘플이 얼마나
+멀리 떨어져도 되는가"다. 다른 양이다.
+
+초안은 SAFETY_CRITICAL 의 DEADLINE 을 KPI 와 같은 5 ms 로 두었다. 주기 10 ms
+제어 스트림을 모니터에 걸자 건강한 표본 500개 중 499개가 위반으로 집계됐다.
+100 Hz 발행자가 5 ms 간격을 낼 수는 없다. Part 3 §2.6 참조.
 
 ### 2.2 LIVELINESS 를 아무 데나 걸지 않는 이유
 
