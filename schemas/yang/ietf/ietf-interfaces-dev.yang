@@ -1,0 +1,418 @@
+// Copyright (c) 2021-2022 Microchip Technology Inc. and its subsidiaries.
+//
+// Unpublished rights reserved under the copyright laws of the United States
+// of America, other countries and international treaties. Permission to use,
+// copy, store and modify, the software and its source code is granted but
+// only in connection with products utilizing the Microsemi switch and PHY
+// products.  Permission is also granted for you to integrate into other
+// products, disclose, transmit and distribute the software only in an
+// absolute machine readable format (e.g. HEX file) and only in or with
+// products utilizing the Microsemi switch and PHY products.  The source code
+// of the software may not be disclosed, transmitted or distributed without
+// the prior written permission of Microsemi.
+//
+// This copyright notice must appear in any copy, modification, disclosure,
+// transmission or distribution of the software.  Microsemi retains all
+// ownership, copyright, trade secret and proprietary rights in the software
+// and its source code, including all modifications thereto.
+//
+// THIS SOFTWARE HAS BEEN PROVIDED "AS IS". MICROSEMI HEREBY DISCLAIMS ALL
+// WARRANTIES OF ANY KIND WITH RESPECT TO THE SOFTWARE, WHETHER SUCH
+// WARRANTIES ARE EXPRESS, IMPLIED, STATUTORY OR OTHERWISE INCLUDING, WITHOUT
+// LIMITATION, WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR USE OR
+// PURPOSE AND NON-INFRINGEMENT.
+
+module ietf-interfaces-dev {
+    yang-version 1.1;
+    namespace "urn:mchp:params:xml:ns:yang:ietf-interfaces-dev";
+    prefix ietf-interfaces-dev-pre;
+
+    import ietf-interfaces {
+        prefix if;
+    }
+
+    import ietf-ip {
+        prefix ip;
+    }
+
+    import ieee802-ethernet-interface {
+        prefix ieee802-eth-if;
+    }
+
+    import ieee802-dot1q-bridge {
+        prefix dot1q;
+    }
+
+    import ieee802-dot1q-preemption-bridge {
+        prefix preempt-bridge;
+    }
+
+    import ieee802-dot1q-sched-bridge {
+        prefix sched-bridge;
+    }
+
+    import ieee802-dot1cb-stream-identification {
+        prefix dot1cb-sid;
+    }
+
+    import mchp-velocitysp-port {
+        prefix lm-port;
+    }
+
+    import mchp-velocitysp-bridge {
+        prefix lm-bridge;
+    }
+
+    revision 2024-04-12 {
+    }
+
+    deviation /if:interfaces-state {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:address {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:admin-point-to-point {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:bridge-name {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:capabilities {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:component-name {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:drop-encoding {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:egress-vid-translations {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:enable-egress-vid-translation-table {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:enable-restricted-vlan-registration {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:enable-vid-translation-table {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:external {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:max-vid-set-entries {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:media-dependent-overhead {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:oper-point-to-point {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:pcp-selection {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:port-number {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:port-type {
+        deviate replace {
+            type lm-bridge:mchp-vlan-port-type;
+        }
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:priority-regeneration {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:protocol-based-vlan-classification {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:protocol-group-vid-set {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:service-access-priority {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:service-access-priority-selection {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:delay-exceeded-discards {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:discard-lack-of-buffers {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:discard-on-error {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:discard-on-ingress-filtering {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:discard-transit-delay-exceeded {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:forward-outbound {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:frame-rx {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:frame-tx {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:mtu-exceeded-discards {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:octets-rx {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:statistics/dot1q:octets-tx {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:traffic-class {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:transmission-selection-algorithm-table {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:type-capabilties {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/dot1q:vid-translations {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/preempt-bridge:frame-preemption-parameters/preempt-bridge:hold-advance {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/preempt-bridge:frame-preemption-parameters/preempt-bridge:hold-request {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/preempt-bridge:frame-preemption-parameters/preempt-bridge:preemption-active {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/preempt-bridge:frame-preemption-parameters/preempt-bridge:release-advance {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/sched-bridge:gate-parameter-table/sched-bridge:queue-max-sdu-table/sched-bridge:transmission-overrun {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:auto-negotiation/ieee802-eth-if:negotiation-status {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:capabilities {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:flow-control/ieee802-eth-if:force-flow-control {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:flow-control/ieee802-eth-if:pfc {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:frame-limit-slow-protocol {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:mac-control-extension-control {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:max-frame-length {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:statistics/ieee802-eth-if:frame/ieee802-eth-if:in-broadcast-frames {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:statistics/ieee802-eth-if:frame/ieee802-eth-if:in-error-mac-internal-frames {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:statistics/ieee802-eth-if:frame/ieee802-eth-if:in-frames {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:statistics/ieee802-eth-if:frame/ieee802-eth-if:in-multicast-frames {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:statistics/ieee802-eth-if:frame/ieee802-eth-if:in-total-octets {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:statistics/ieee802-eth-if:frame/ieee802-eth-if:out-broadcast-frames {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:statistics/ieee802-eth-if:frame/ieee802-eth-if:out-error-mac-internal-frames {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:statistics/ieee802-eth-if:frame/ieee802-eth-if:out-multicast-frames {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:statistics/ieee802-eth-if:mac-control {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:statistics/ieee802-eth-if:phy {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/if:admin-status {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/if:description {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/if:higher-layer-if {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/if:last-change {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/if:link-up-down-trap-enable {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/if:lower-layer-if {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/if:speed {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/if:statistics/dot1cb-sid:stream-id {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/if:statistics/if:discontinuity-time {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ip:ipv4/ip:address/ip:subnet/ip:netmask {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ip:ipv4/ip:neighbor {
+        deviate replace {
+            config false;
+        }
+    }
+
+    deviation /if:interfaces/if:interface/ip:ipv4/ip:neighbor/ip:origin {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ip:ipv4/ip:enabled {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ip:ipv4/ip:mtu {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ip:ipv6 {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/sched-bridge:gate-parameter-table/sched-bridge:config-change {
+        deviate replace {
+            type lm-bridge:mchp-config-change-type;
+        }
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/sched-bridge:gate-parameter-table/sched-bridge:supported-cycle-max/sched-bridge:denominator {
+        deviate replace {
+            config false;
+        }
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/sched-bridge:gate-parameter-table/sched-bridge:supported-cycle-max/sched-bridge:numerator {
+        deviate replace {
+            config false;
+        }
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/sched-bridge:gate-parameter-table/sched-bridge:supported-interval-max {
+        deviate replace {
+            config false;
+        }
+    }
+
+    deviation /if:interfaces/if:interface/dot1q:bridge-port/sched-bridge:gate-parameter-table/sched-bridge:supported-list-max {
+        deviate replace {
+            config false;
+        }
+    }
+
+    deviation /if:interfaces/if:interface/lm-port:eth-port/lm-port:statistics/lm-port:clear {
+        deviate not-supported;
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:duplex {
+        deviate replace {
+            config false;
+        }
+    }
+
+    deviation /if:interfaces/if:interface/ieee802-eth-if:ethernet/ieee802-eth-if:speed {
+        deviate replace {
+            config false;
+        }
+    }
+}

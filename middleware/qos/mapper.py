@@ -240,8 +240,12 @@ class QosRegistry:
         hi = idle * (interference * 8) / port_mbps
         # loCredit: credit spent transmitting this class's own largest frame
         lo = send * (max_frame_bytes * 8) / port_mbps
-        return {"idle_slope_kbps": round(idle * 1000, 3),
-                "send_slope_kbps": round(send * 1000, 3),
+        # Units are bits per second, because that is what the standard leaf
+        # ieee802-dot1q-cbsa:admin-idle-slope is defined in. Linux `tc cbs`
+        # wants kilobit per second; that conversion belongs in the emitter that
+        # speaks to Linux, not in the value the platform carries.
+        return {"idle_slope_bps": round(idle * 1e6, 3),
+                "send_slope_bps": round(send * 1e6, 3),
                 "hi_credit_bits": round(hi, 3),
                 "lo_credit_bits": round(lo, 3)}
 

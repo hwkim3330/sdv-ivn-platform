@@ -154,7 +154,7 @@ stream = sdv.create_stream("/external/selected/control_cmd",
 stream.publish(control_command)
 ```
 
-애플리케이션은 Fast DDS 인지 LAN9692 인지 알지 못한다. 2027년에 마지막 어댑터를
+애플리케이션은 Fast DDS 인지 TSN 브리지 (FRER 없음) 인지 알지 못한다. 2027년에 마지막 어댑터를
 국산 반도체로 바꿀 때 이 줄이 그대로 남는 것이 이 경계의 목적이다.
 
 ## 6. Fault API

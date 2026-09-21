@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 
-CAPS_PATH = Path(__file__).resolve().parents[2] / "devices" / "capabilities.yaml"
+CAPS_PATH = Path(__file__).resolve().parents[2] / "devices" / "device-classes.yaml"
 
 
 @dataclass
@@ -38,7 +38,7 @@ class Waiver:
     """A knowingly accepted deviation, with the evidence that it is acceptable.
 
     Refusal by default is right, but a bench where nothing can be demonstrated
-    is not useful either. A waiver lets an engineer say "yes, this LAN9692 has
+    is not useful either. A waiver lets an engineer say "yes, this TSN 브리지 (FRER 없음) has
     no FRER, run the CONTROL stream single-path anyway, here is why that is
     safe for this test" -- and leaves that sentence attached to the plan, so it
     shows up in the report rather than living in someone's memory.
@@ -91,8 +91,34 @@ class CapabilityGate:
     def __init__(self, path: str | Path | None = None):
         with open(path or CAPS_PATH) as f:
             self.doc = yaml.safe_load(f)
-        self.devices = self.doc["devices"]
+        self.devices = self.doc["classes"]          # capability classes, not vendors
         self.requirement_map = self.doc["requirement_map"]
+        self.site: dict[str, str] = {}              # device name -> class name
+
+    def load_site(self, path: str | Path) -> "CapabilityGate":
+        """Attach real hardware to capability classes.
+
+        Vendor names live here and nowhere else in the platform. A site file is
+        optional and need not be published with the repository.
+        """
+        with open(path) as f:
+            doc = yaml.safe_load(f) or {}
+        for name, spec in (doc.get("devices") or {}).items():
+            cls = spec.get("class") if isinstance(spec, dict) else spec
+            if cls not in self.devices:
+                raise KeyError(f"{name}: unknown capability class {cls!r}; "
+                               f"known: {', '.join(sorted(self.devices))}")
+            self.site[name] = cls
+        return self
+
+    def _class_of(self, device: str) -> str:
+        """A name is either a capability class or a site device mapped to one."""
+        if device in self.devices:
+            return device
+        if device in self.site:
+            return self.site[device]
+        known = sorted(set(self.devices) | set(self.site))
+        raise KeyError(f"unknown device or class {device!r}; known: {', '.join(known)}")
 
     def requirements_of(self, stream) -> list[str]:
         """What this stream needs from a bridge, in capability terms."""
@@ -121,9 +147,8 @@ class CapabilityGate:
         stream.tsn.setdefault("degraded", []).append(capability)
 
     def check(self, stream, device: str) -> list[Refusal]:
-        if device not in self.devices:
-            raise KeyError(f"unknown device {device!r}; known: {', '.join(self.devices)}")
-        caps = self.devices[device]["capabilities"]
+        cls_name = self._class_of(device)
+        caps = self.devices[cls_name]["capabilities"]
         out = []
         for req in self.requirements_of(stream):
             cap = self.requirement_map.get(req, req)
@@ -135,7 +160,7 @@ class CapabilityGate:
                                    f"{device} 의 {cap} 지원 여부가 아직 미확정이다. "
                                    f"실측 전까지 {stream.request.qos_class} 를 여기 배치할 수 없다"))
             else:
-                ev = (self.devices[device].get("evidence") or {}).get(cap, "")
+                ev = (self.devices[cls_name].get("evidence") or {}).get(cap, "")
                 out.append(Refusal(stream.name, device, req, cap,
                                    f"{stream.request.qos_class} 는 {req} 를 요구하는데 "
                                    f"{device} 에 {cap} 가 없다"
@@ -176,14 +201,15 @@ class CapabilityGate:
         from network.tsn import emit_yang
         from network.frer import emit_frer
 
-        dev = self.devices[device]
+        dev = self.devices[self._class_of(device)]
         if port_mbps is None:
             port_mbps = 1000.0
         if registry is not None:
             gcl = registry.build_gate_control_list(plan.streams, port_mbps)
             plan.config.update(emit_yang.gate_parameter_table(port, gcl))
             plan.config["_gcl"] = gcl
-        plan.config.update(emit_yang.cbs_idle_slopes(port, plan.streams))
+        plan.config.update(emit_yang.cbsa(port, plan.streams))
+        plan.config.update(emit_yang.queue_max_sdu(port, plan.streams))
         if dev["capabilities"].get("preemption") is True:
             plan.config.update(emit_yang.preemption(port, plan.streams))
         idx = 0
@@ -193,5 +219,7 @@ class CapabilityGate:
             plan.config.update(emit_frer.stream_identity(s, idx, [port], [port]))
             plan.config.update(emit_frer.sequence_generation(s, idx))
             plan.config.update(emit_frer.sequence_recovery(s, idx, [port]))
+            plan.config.update(emit_frer.stream_split(s, idx, [port]))
+            plan.config.update(emit_frer.sequence_identification(s, idx, [port]))
             idx += 1
         return plan

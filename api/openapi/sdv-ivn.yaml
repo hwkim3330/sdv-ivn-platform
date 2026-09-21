@@ -152,7 +152,7 @@ paths:
                 streams:
                   type: array
                   items: { $ref: "#/components/schemas/StreamRequest" }
-                device: { type: string, examples: [lan9692, kontron_d10] }
+                device: { type: string, examples: [tsn_bridge_no_frer, tsn_bridge_no_preemption] }
                 port: { type: string, default: "1" }
                 waivers:
                   type: array

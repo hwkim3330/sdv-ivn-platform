@@ -212,10 +212,10 @@ reset timeout 이 두 경로의 지연 차보다 짧으면 같은 프레임의 �
 
 | 장비 | 제약 | 근거 |
 |---|---|---|
-| LAN9692 / 9662 | 802.1CB **복제·제거 없음**. 식별만. | YANG 카탈로그에 `ieee802-dot1cb-frer` 부재, `sequence-generation`/`sequence-recovery` 노드 없음. 벤더 매뉴얼 재확인. |
-| Kontron D10 | 프레임 선점 없음 | 카탈로그 |
-| Kontron D10 | FRER 동작 확인됨 | 실기에서 B 스위치 Gi1/6 물리 단절 시 수신 유지 |
-| Kontron D10 | "2.5G" 광 포트 상한은 2.5G | 10G-SR 모듈 링크 안 올라옴. 스위치 간은 구리 Gi. |
+| FRER 없는 TSN 브리지 | 802.1CB **복제·제거 없음**. 식별만. | YANG 카탈로그에 `ieee802-dot1cb-frer` 부재, `sequence-generation`/`sequence-recovery` 노드 없음. 벤더 매뉴얼 재확인. |
+| TSN 브리지 (선점 없음) | 프레임 선점 없음 | 카탈로그 |
+| TSN 브리지 (선점 없음) | FRER 동작 확인됨 | 실기에서 B 스위치 Gi1/6 물리 단절 시 수신 유지 |
+| TSN 브리지 (선점 없음) | "2.5G" 광 포트 상한은 2.5G | 10G-SR 모듈 링크 안 올라옴. 스위치 간은 구리 Gi. |
 | 개발 10G/10M 칩 | 전 항목 미확정 | 실물 없음 |
 
 ## 11. YANG 경로
@@ -224,7 +224,7 @@ reset timeout 이 두 경로의 지연 차보다 짧으면 같은 프레임의 �
 |---|---|
 | TAS | `/ietf-interfaces:interfaces/interface[name='{port}']/ieee802-dot1q-bridge:bridge-port/ieee802-dot1q-sched-bridge:gate-parameter-table` |
 | 선점 | `…/ieee802-dot1q-preemption-bridge:frame-preemption-parameters` |
-| CBS (Microchip) | `…/mchp-velocitysp-port:eth-qos/config/traffic-class-shapers[traffic-class={tc}]/credit-based/idle-slope` |
+| CBS | `…/ieee802-dot1q-cbsa-bridge:cbsa/cbsa-parameter-table[traffic-class={tc}]/admin-idle-slope` |
 | 스트림 식별 | `/ieee802-dot1cb-stream-identification:stream-identity[index={i}]` |
 | FRER 순번 생성 | `/ieee802-dot1cb-frer:frame-replication-and-elimination/sequence-generation[index={i}]` |
 | FRER 순번 복구 | `…/sequence-recovery[index={i}]` |

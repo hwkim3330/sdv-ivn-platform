@@ -230,12 +230,15 @@ def test_cycle_is_the_shortest_period_so_every_stream_gets_a_window(reg):
 
 def test_send_slope_is_negative(reg):
     c = reg.cbs_parameters(100, 1000, 1500)
-    assert c["send_slope_kbps"] < 0
+    assert c["send_slope_bps"] < 0
 
 
-def test_idle_slope_reserves_the_stream_rate(reg):
+def test_idle_slope_is_in_bits_per_second(reg):
+    """ieee802-dot1q-cbsa:admin-idle-slope is defined in bits/second. Carrying
+    kilobits and converting at the emitter is how a shaper ends up reserving a
+    thousandth of what was asked for."""
     c = reg.cbs_parameters(165.5, 1000, 1500)
-    assert c["idle_slope_kbps"] == pytest.approx(165500, rel=1e-6)
+    assert c["idle_slope_bps"] == pytest.approx(165_500_000, rel=1e-6)
 
 
 def test_preemption_lowers_the_credit_a_class_must_accrue(reg):
@@ -250,7 +253,7 @@ def test_missing_frer_refuses_rather_than_downgrades():
     reg = QosRegistry()
     gate = CapabilityGate()
     s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 128, 5.0))
-    plan = gate.plan([s], "lan9692", registry=reg)
+    plan = gate.plan([s], "tsn_bridge_no_frer", registry=reg)
     assert not plan.ok
     assert any(r.capability == "frer" for r in plan.refusals)
     assert s.tsn["redundancy"] == "frer_dual", "refusal must not mutate the stream"
@@ -260,8 +263,8 @@ def test_unmeasured_capability_is_refused_differently_from_absent_one():
     reg = QosRegistry()
     gate = CapabilityGate()
     s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 128, 5.0))
-    unknown = gate.plan([s], "ivn_chip_10g", registry=reg)
-    absent = gate.plan([s], "lan9692", registry=reg)
+    unknown = gate.plan([s], "unverified", registry=reg)
+    absent = gate.plan([s], "tsn_bridge_no_frer", registry=reg)
     assert any("미확정" in r.reason for r in unknown.refusals)
     assert not any("미확정" in r.reason for r in absent.refusals)
 
@@ -270,8 +273,8 @@ def test_a_waiver_deploys_but_marks_the_stream_degraded():
     reg = QosRegistry()
     gate = CapabilityGate()
     s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 128, 5.0))
-    w = [Waiver("*", "lan9692", "frer", "single path for this bench run", "tester")]
-    plan = gate.plan([s], "lan9692", registry=reg, waivers=w)
+    w = [Waiver("*", "tsn_bridge_no_frer", "frer", "single path for this bench run", "tester")]
+    plan = gate.plan([s], "tsn_bridge_no_frer", registry=reg, waivers=w)
     assert plan.ok and plan.degraded
     assert s.tsn["redundancy"] == "none", "a waiver must remove the feature, not hide it"
     assert "frer" in s.tsn["degraded"]
@@ -281,14 +284,14 @@ def test_waiver_for_a_different_device_does_not_apply():
     reg = QosRegistry()
     gate = CapabilityGate()
     s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 128, 5.0))
-    w = [Waiver("*", "kontron_d10", "frer", "irrelevant", "tester")]
-    assert not gate.plan([s], "lan9692", registry=reg, waivers=w).ok
+    w = [Waiver("*", "tsn_bridge_no_preemption", "frer", "irrelevant", "tester")]
+    assert not gate.plan([s], "tsn_bridge_no_frer", registry=reg, waivers=w).ok
 
 
-def test_kontron_d10_can_do_frer_but_not_preemption():
+def test_a_class_may_have_redundancy_but_not_preemption():
     reg = QosRegistry()
     gate = CapabilityGate()
     s = reg.resolve(StreamRequest("cmd", "REDUNDANT_SAFETY", 128, 5.0))
-    refusals = gate.check(s, "kontron_d10")
+    refusals = gate.check(s, "tsn_bridge_no_preemption")
     caps = {r.capability for r in refusals}
     assert "frer" not in caps and "preemption" in caps

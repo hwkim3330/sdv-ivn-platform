@@ -56,10 +56,10 @@ def tc_commands(parent: str, streams, port_mbps: float, gcl: dict | None = None)
         if s.tsn["shaper"] != "cbs":
             continue
         q = order[s.tsn["traffic_class"]] + 1
-        c = s.tsn["cbs"]
+        c = s.tsn["cbs"]      # tc takes kilobit/s; the platform carries bit/s
         cmds.append(
             f"tc qdisc replace dev {parent} parent 100:{q} cbs "
-            f"idleslope {int(c['idle_slope_kbps'])} sendslope {int(c['send_slope_kbps'])} "
+            f"idleslope {int(c['idle_slope_bps'] / 1000)} sendslope {int(c['send_slope_bps'] / 1000)} "
             f"hicredit {int(c['hi_credit_bits'])} locredit {int(c['lo_credit_bits'])} offload 1"
         )
     if gcl and gcl.get("enabled"):

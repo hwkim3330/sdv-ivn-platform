@@ -16,7 +16,7 @@ hwkim3330/autoware              sdv-ivn-platform
                                         ↓  build_profile.py
                                 트래픽 행렬 · 승인 판정 · TSN 설정
                                         ↓
-                                LAN9692 / D10 / 개발 반도체
+                                상용 TSN 브리지 / 개발 반도체
 ```
 
 ## 왜 이 애플리케이션인가
@@ -43,11 +43,11 @@ Autoware 는 마침 안전 수준이 뚜렷하게 갈리는 트래픽을 동시�
 ```bash
 python profiles/autoware/build_profile.py                 # 트래픽 행렬 + 승인
 python profiles/autoware/build_profile.py --yaml          # 프로파일 YAML
-python profiles/autoware/build_profile.py --device lan9692  # 배치 계획 (거부 포함)
+python profiles/autoware/build_profile.py --device tsn_bridge_no_frer  # 배치 계획 (거부 포함)
 
 # 벤치 스위치에 FRER 이 없는 것을 알고 돌릴 때
-python profiles/autoware/build_profile.py --device lan9692 \
-  --waive 'lan9692:frer:이번 시험은 경로 이중화가 아니라 DDS-TSN 매핑과 지연·지터를 본다'
+python profiles/autoware/build_profile.py --device tsn_bridge_no_frer \
+  --waive 'tsn_bridge_no_frer:frer:이번 시험은 경로 이중화가 아니라 DDS-TSN 매핑과 지연·지터를 본다'
 ```
 
 ## 옮길 것과 남길 것
@@ -60,7 +60,7 @@ python profiles/autoware/build_profile.py --device lan9692 \
 | HMI, 태블릿 앱 | 표준안, API, 스키마 |
 | 센서 어댑터, 모드 매니저 (adaptation plugin) | 범용 결함 판정 로직 |
 | `ros_ws_gateway.py` (SDV API 클라이언트로 축소) | `fastdds_udp.xml` 의 후신 |
-| 차량·시뮬레이터 결선 | LAN9692 / D10 제어 |
+| 차량·시뮬레이터 결선 | 상용 TSN 브리지 제어 |
 
 `ros_ws_gateway.py` 는 87 KB 한 파일에 ROS 구독, AD API, 경로 관리, 텔레옵,
 결함 주입, 재구성, 신호등, 카메라, WebSocket, HMI JSON, 차량 제어가 다 들어

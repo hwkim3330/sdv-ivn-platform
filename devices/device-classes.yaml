@@ -1,0 +1,130 @@
+# 장비 능력 등급 — 벤더 이름 없이, 할 수 있는 것으로 장비를 가른다.
+#
+# 플랫폼은 어떤 회사의 어떤 칩인지 알지 않는다. 등급 하나를 알 뿐이다.
+# 실제 장비를 등급에 붙이는 것은 현장 파일(devices/sites/*.yaml)의 몫이고,
+# 그 파일은 이 저장소 밖에 둘 수도 있다.
+#
+# 이렇게 가르는 이유는 두 가지다. 하나는 이식성 — 2027년에 어댑터만 갈아끼우고
+# 상위를 그대로 두려면 상위가 벤더를 몰라야 한다. 다른 하나는 정직성 —
+# "이 칩은 FRER 이 없다"는 벤더 비방이 아니라 등급 판정이다.
+#
+# 능력 값은 세 가지다.
+#   true   있다 (확인됨)
+#   false  없다 (근거 필요)
+#   null   아직 측정하지 않았다  <- false 와 다르게 다룬다
+
+version: "0.1.0"
+
+classes:
+
+  tsn_bridge_full:
+    description: "802.1 TSN 전 기능 브리지 — 스케줄, 크레딧, 선점, 이중화."
+    capabilities:
+      tas: true            # 802.1Qbv
+      cbs: true            # 802.1Qav (ieee802-dot1q-cbsa)
+      psfp: true           # 802.1Qci
+      preemption: true     # 802.1Qbu / 802.3br
+      ptp: true            # 802.1AS
+      stream_identification: true   # 802.1CB Clause 6
+      frer: true                    # 802.1CB Clause 7
+      vlan: true
+      macsec: null
+
+  tsn_bridge_no_frer:
+    description: >
+      스케줄·크레딧·선점은 되지만 802.1CB 복제·제거가 없는 브리지.
+      스트림 식별(Clause 6)만 구현한 경우가 여기 해당한다 — 스트림을 알아보고
+      아무것도 하지 않으므로, 이중화 등급을 배치하면 안 된다.
+    capabilities:
+      tas: true
+      cbs: true
+      psfp: true
+      preemption: true
+      ptp: true
+      stream_identification: true
+      frer: false
+      vlan: true
+      macsec: null
+    evidence:
+      frer: >
+        Clause 7 모델(ieee802-dot1cb-frer)의 노드가 장비 스키마에 없다.
+        sequence-generation / sequence-recovery / stream-split 부재로 판정한다.
+
+  tsn_bridge_no_preemption:
+    description: "이중화는 되지만 프레임 선점이 없는 브리지."
+    capabilities:
+      tas: true
+      cbs: true
+      psfp: true
+      preemption: false
+      ptp: true
+      stream_identification: true
+      frer: true
+      vlan: true
+      macsec: null
+    evidence:
+      preemption: "802.1Qbu 모델 노드가 장비 스키마에 없다."
+
+  ethernet_bridge_plain:
+    description: "VLAN 과 우선순위만 있는 보통 스위치. TSN 없음."
+    capabilities:
+      tas: false
+      cbs: false
+      psfp: false
+      preemption: false
+      ptp: null
+      stream_identification: false
+      frer: false
+      vlan: true
+      macsec: null
+
+  edge_multidrop_10m:
+    description: >
+      10BASE-T1S 멀티드롭 세그먼트 (802.3cg). 게이트도 크레딧도 선점도 없고,
+      중재는 PLCA 가 한다. 802.1CB 는 구현 누락이 아니라 이 매체에서 의미가
+      없다 — 공유 선로에 복제하면 두 복제분이 같은 선을 지난다.
+    capabilities:
+      tas: false
+      cbs: false
+      psfp: null
+      preemption: false
+      ptp: null
+      stream_identification: null
+      frer: false
+      vlan: true
+      macsec: false
+      plca: true
+    evidence:
+      frer: >
+        멀티드롭 공유 매체에는 서로 겹치지 않는 두 경로가 없다. 802.1CB 의
+        전제가 성립하지 않으므로 이중화는 이 세그먼트 위쪽에서 제공해야 한다.
+      preemption: "10BASE-T1S 에 802.3br 없음."
+
+  unverified:
+    description: >
+      개발 중이거나 아직 측정하지 않은 장비. 모든 능력이 미확정이며, 어떤
+      등급도 배치되지 않는다. 실물이 오면 측정값으로 채운다.
+    capabilities:
+      tas: null
+      cbs: null
+      psfp: null
+      preemption: null
+      ptp: null
+      stream_identification: null
+      frer: null
+      vlan: null
+      macsec: null
+
+# QoS 등급의 요구를 능력 이름으로 옮기는 표. 승인 검사가 이것을 읽는다.
+requirement_map:
+  frer_dual: frer
+  tas: tas
+  cbs: cbs
+  express: preemption
+
+# 현장 파일이 없을 때 쓰는 기본 배치. 실제 장비 이름은 여기 두지 않는다.
+default_topology:
+  hpc:          tsn_bridge_full
+  zone_front:   tsn_bridge_full
+  zone_rear:    tsn_bridge_full
+  edge_bus:     edge_multidrop_10m

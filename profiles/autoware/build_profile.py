@@ -7,7 +7,7 @@
 
     python profiles/autoware/build_profile.py            # 요약
     python profiles/autoware/build_profile.py --yaml     # 프로파일 YAML
-    python profiles/autoware/build_profile.py --device lan9692   # 배치 계획
+    python profiles/autoware/build_profile.py --device tsn_bridge_no_frer   # 배치 계획
 """
 from __future__ import annotations
 

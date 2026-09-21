@@ -1,0 +1,106 @@
+// Copyright (c) 2021-2022 Microchip Technology Inc. and its subsidiaries.
+//
+// Unpublished rights reserved under the copyright laws of the United States
+// of America, other countries and international treaties. Permission to use,
+// copy, store and modify, the software and its source code is granted but
+// only in connection with products utilizing the Microsemi switch and PHY
+// products.  Permission is also granted for you to integrate into other
+// products, disclose, transmit and distribute the software only in an
+// absolute machine readable format (e.g. HEX file) and only in or with
+// products utilizing the Microsemi switch and PHY products.  The source code
+// of the software may not be disclosed, transmitted or distributed without
+// the prior written permission of Microsemi.
+//
+// This copyright notice must appear in any copy, modification, disclosure,
+// transmission or distribution of the software.  Microsemi retains all
+// ownership, copyright, trade secret and proprietary rights in the software
+// and its source code, including all modifications thereto.
+//
+// THIS SOFTWARE HAS BEEN PROVIDED "AS IS". MICROSEMI HEREBY DISCLAIMS ALL
+// WARRANTIES OF ANY KIND WITH RESPECT TO THE SOFTWARE, WHETHER SUCH
+// WARRANTIES ARE EXPRESS, IMPLIED, STATUTORY OR OTHERWISE INCLUDING, WITHOUT
+// LIMITATION, WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR USE OR
+// PURPOSE AND NON-INFRINGEMENT.
+
+module ietf-routing-dev {
+    yang-version 1.1;
+    namespace "urn:mchp:params:xml:ns:yang:ietf-routing-dev";
+    prefix ietf-routing-dev-pre;
+
+    import ietf-routing {
+        prefix rt;
+    }
+
+    import ietf-ipv4-unicast-routing {
+        prefix v4ur;
+    }
+
+    revision 2024-04-12 {
+    }
+
+    deviation /rt:routing/rt:router-id {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:interfaces {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:control-plane-protocols/rt:control-plane-protocol/rt:description {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:control-plane-protocols/rt:control-plane-protocol/rt:static-routes/v4ur:ipv4/v4ur:route/v4ur:description {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:control-plane-protocols/rt:control-plane-protocol/rt:static-routes/v4ur:ipv4/v4ur:route/v4ur:next-hop/v4ur:next-hop-options/v4ur:simple-next-hop/v4ur:outgoing-interface {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:control-plane-protocols/rt:control-plane-protocol/rt:static-routes/v4ur:ipv4/v4ur:route/v4ur:next-hop/v4ur:next-hop-options/v4ur:special-next-hop {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:control-plane-protocols/rt:control-plane-protocol/rt:static-routes/v4ur:ipv4/v4ur:route/v4ur:next-hop/v4ur:next-hop-options/v4ur:next-hop-list {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:ribs {
+        deviate replace {
+            config false;
+        }
+    }
+
+    deviation /rt:routing/rt:ribs/rt:rib/rt:default-rib {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:ribs/rt:rib/rt:routes/rt:route/rt:route-preference {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:ribs/rt:rib/rt:routes/rt:route/rt:next-hop/rt:next-hop-options/rt:special-next-hop {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:ribs/rt:rib/rt:routes/rt:route/rt:next-hop/rt:next-hop-options/rt:next-hop-list {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:ribs/rt:rib/rt:routes/rt:route/rt:last-updated {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:ribs/rt:rib/rt:description {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing/rt:ribs/rt:rib/rt:active-route {
+        deviate not-supported;
+    }
+
+    deviation /rt:routing-state {
+        deviate not-supported;
+    }
+}

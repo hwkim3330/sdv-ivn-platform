@@ -1,0 +1,110 @@
+// Copyright (c) 2021-2022 Microchip Technology Inc. and its subsidiaries.
+//
+// Unpublished rights reserved under the copyright laws of the United States
+// of America, other countries and international treaties. Permission to use,
+// copy, store and modify, the software and its source code is granted but
+// only in connection with products utilizing the Microsemi switch and PHY
+// products.  Permission is also granted for you to integrate into other
+// products, disclose, transmit and distribute the software only in an
+// absolute machine readable format (e.g. HEX file) and only in or with
+// products utilizing the Microsemi switch and PHY products.  The source code
+// of the software may not be disclosed, transmitted or distributed without
+// the prior written permission of Microsemi.
+//
+// This copyright notice must appear in any copy, modification, disclosure,
+// transmission or distribution of the software.  Microsemi retains all
+// ownership, copyright, trade secret and proprietary rights in the software
+// and its source code, including all modifications thereto.
+//
+// THIS SOFTWARE HAS BEEN PROVIDED "AS IS". MICROSEMI HEREBY DISCLAIMS ALL
+// WARRANTIES OF ANY KIND WITH RESPECT TO THE SOFTWARE, WHETHER SUCH
+// WARRANTIES ARE EXPRESS, IMPLIED, STATUTORY OR OTHERWISE INCLUDING, WITHOUT
+// LIMITATION, WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR USE OR
+// PURPOSE AND NON-INFRINGEMENT.
+
+module ietf-hardware-dev {
+    yang-version 1.1;
+    namespace "urn:mchp:params:xml:ns:yang:ietf-hardware-dev";
+    prefix ietf-hardware-dev-pre;
+
+    import ietf-hardware {
+        prefix hw;
+    }
+
+    revision 2025-03-31 {
+    }
+
+    deviation /hw:hardware {
+        deviate replace {
+            config false;
+        }
+    }
+
+    deviation /hw:hardware-state-change {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware-state-oper-disabled {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware-state-oper-enabled {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:alias {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:asset-id {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:contains-child {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:description {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:is-fru {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:mfg-date {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:parent-rel-pos {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:physical-index {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:sensor-data/hw:value-timestamp {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:software-rev {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:state {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:uri {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:component/hw:uuid {
+        deviate not-supported;
+    }
+
+    deviation /hw:hardware/hw:last-change {
+        deviate not-supported;
+    }
+}

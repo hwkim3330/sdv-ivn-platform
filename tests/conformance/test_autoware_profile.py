@@ -117,24 +117,24 @@ def test_kpi_streams_carry_the_budgets(built):
         assert s.cls["jitter_budget_ms"] == 2.5
 
 
-def test_the_bench_switch_refuses_the_redundant_streams(built):
-    """LAN9692 has 802.1CB stream identification but not replication. The
-    profile must not pretend otherwise."""
+def test_a_bridge_without_frer_refuses_the_redundant_streams(built):
+    """A class with 802.1CB stream identification but no replication must not
+    be given the redundant streams."""
     _, reg, resolved, _ = built
-    plan = CapabilityGate().plan(resolved, "lan9692", registry=reg)
+    plan = CapabilityGate().plan(resolved, "tsn_bridge_no_frer", registry=reg)
     assert not plan.ok
     assert {r.capability for r in plan.refusals} == {"frer"}
 
 
-def test_the_bench_switch_runs_with_a_recorded_waiver(built):
+def test_a_bridge_without_frer_runs_with_a_recorded_waiver(built):
     _, reg, resolved, _ = built
     catalog = build_profile.load_catalog()
     fresh, _ = build_profile.build(catalog, reg)      # unmutated copies
-    w = [Waiver("*", "lan9692", "frer",
+    w = [Waiver("*", "tsn_bridge_no_frer", "frer",
                 "no 802.1CB replication on this part; this run measures the "
                 "DDS-TSN mapping and the latency budget, not path redundancy",
                 "bench")]
-    plan = CapabilityGate().plan(fresh, "lan9692", registry=reg, waivers=w)
+    plan = CapabilityGate().plan(fresh, "tsn_bridge_no_frer", registry=reg, waivers=w)
     assert plan.ok and plan.degraded
     assert all(s.tsn["redundancy"] == "none" for s in plan.streams)
 

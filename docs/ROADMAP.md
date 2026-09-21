@@ -25,15 +25,15 @@
 | Abstract DDS API 최소 표면 구현 (Fast DDS 어댑터 먼저) |
 | `ros_ws_gateway.py` 를 5개 서비스로 분해 시작 |
 
-### 2026.11 — DDS 모니터와 LAN9692 결선
+### 2026.11 — DDS 모니터와 TSN 브리지 (FRER 없음) 결선
 
 | 할 일 |
 |---|
 | DDS 모니터를 rclpy 에 결선 (`dds/monitor/collector.py`) |
 | gPTP 동기 확인 후 두 호스트 간 지연 측정 개시 |
-| LAN9692 에 생성된 YANG 을 실제로 밀어 넣고 확인 |
+| TSN 브리지 (FRER 없음) 에 생성된 YANG 을 실제로 밀어 넣고 확인 |
 | 대조군 측정: baseline / pcp-only / full |
-| FRER on/off 비교 (Kontron D10, 9692 는 FRER 없음) |
+| FRER on/off 비교 (TSN 브리지 (선점 없음), 9692 는 FRER 없음) |
 | PCP 7 항목: gPTP 오프셋 분포 비교 |
 
 ### 2026.12 — 2차년도 데모
@@ -43,7 +43,7 @@ CARLA / Autoware
       ↓  SDV API
      DDS
       ↓  QoS Policy Mapper
-LAN9692 망  (+ D10 으로 FRER)
+TSN 브리지 (FRER 없음) 망  (+ D10 으로 FRER)
       ↓
 Remote node
 
@@ -57,7 +57,7 @@ Remote node
 ## 2027년 — 개발 반도체로 교체
 
 ```
-2026   Autoware → SDV API → DDS → Network API → [LAN9692 / D10]
+2026   Autoware → SDV API → DDS → Network API → [상용 TSN 브리지]
 2027   Autoware → SDV API → DDS → Network API → [국산 IVN 반도체]
 ```
 
